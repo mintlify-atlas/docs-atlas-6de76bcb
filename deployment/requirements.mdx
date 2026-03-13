@@ -1,0 +1,179 @@
+---
+title: System Requirements
+description: Prerequisites and dependencies for running MiroFish
+---
+
+Before installing MiroFish, ensure your system meets the following requirements. MiroFish consists of a Python backend and a Node.js frontend, requiring both environments to be properly configured.
+
+## Hardware Requirements
+
+<CardGroup cols={2}>
+  <Card title="Minimum Specs" icon="server">
+    - 4GB RAM
+    - 2 CPU cores
+    - 10GB disk space
+  </Card>
+  <Card title="Recommended Specs" icon="rocket">
+    - 8GB+ RAM
+    - 4+ CPU cores
+    - 20GB+ disk space
+  </Card>
+</CardGroup>
+
+<Note>
+MiroFish simulations can be resource-intensive depending on the number of rounds and agents. Higher specifications will result in better performance.
+</Note>
+
+## Software Requirements
+
+### Runtime Environments
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js">
+    **Version:** 18.0.0 or higher
+    
+    Node.js powers the frontend interface and includes npm for package management.
+    
+    **Check installation:**
+    ```bash
+    node -v
+    ```
+  </Card>
+  
+  <Card title="Python" icon="python">
+    **Version:** 3.11 or 3.12
+    
+    Python runs the backend simulation engine. Versions outside this range are not supported.
+    
+    **Check installation:**
+    ```bash
+    python --version
+    ```
+  </Card>
+</CardGroup>
+
+<Warning>
+Python 3.13+ is **not supported**. MiroFish requires Python ≥3.11 and ≤3.12 due to dependency constraints.
+</Warning>
+
+### Package Managers
+
+<Card title="uv - Python Package Manager" icon="package">
+  MiroFish uses [uv](https://docs.astral.sh/uv/) for fast and reliable Python dependency management.
+  
+  **Installation:**
+  ```bash
+  # On macOS and Linux:
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  
+  # On Windows:
+  powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+  
+  **Check installation:**
+  ```bash
+  uv --version
+  ```
+</Card>
+
+## External Service Requirements
+
+### LLM API Provider
+
+<Card title="Large Language Model API" icon="brain">
+  MiroFish requires access to an LLM API that supports the OpenAI SDK format.
+  
+  **Recommended Provider:**
+  - **Alibaba Qwen-plus** via Bailian Platform
+  - URL: https://bailian.console.aliyun.com/
+  
+  **Supported Alternatives:**
+  - OpenAI GPT-4o/GPT-4o-mini
+  - Any OpenAI-compatible API endpoint
+  
+  <Warning>
+  Simulations can consume significant API tokens. Start with fewer than 40 rounds to test and estimate costs.
+  </Warning>
+</Card>
+
+### Memory Management Service
+
+<Card title="Zep Cloud" icon="database">
+  MiroFish uses [Zep Cloud](https://app.getzep.com/) for agent memory and knowledge graph management.
+  
+  **Free Tier:**
+  - Monthly free quota is sufficient for basic usage
+  - No credit card required to start
+  
+  **Sign up:** https://app.getzep.com/
+</Card>
+
+## Network Requirements
+
+### Port Availability
+
+<CardGroup cols={2}>
+  <Card title="Port 3000" icon="globe">
+    **Frontend Application**
+    
+    The Next.js frontend interface runs on this port.
+  </Card>
+  
+  <Card title="Port 5001" icon="server">
+    **Backend API**
+    
+    The Flask backend API runs on this port.
+  </Card>
+</CardGroup>
+
+<Info>
+Ensure these ports are not in use by other applications. You can modify the ports in the configuration if needed.
+</Info>
+
+### Internet Connectivity
+
+MiroFish requires internet access for:
+- LLM API calls
+- Zep Cloud memory synchronization
+- Downloading dependencies during installation
+
+## Installation Methods
+
+Choose your preferred installation method:
+
+<CardGroup cols={2}>
+  <Card title="Source Installation" icon="code" href="/deployment/source-installation">
+    Install from source code with full control over dependencies and configuration.
+    
+    **Best for:** Development and customization
+  </Card>
+  
+  <Card title="Docker Deployment" icon="docker" href="/deployment/docker">
+    Use Docker Compose for containerized deployment with minimal setup.
+    
+    **Best for:** Production and quick testing
+  </Card>
+</CardGroup>
+
+## Quick Verification
+
+Once you have all prerequisites installed, verify your setup:
+
+```bash
+# Check Node.js
+node -v  # Should show v18.0.0 or higher
+
+# Check Python
+python --version  # Should show 3.11.x or 3.12.x
+
+# Check uv
+uv --version  # Should show installed version
+
+# Check ports availability
+lsof -i :3000  # Should return nothing
+lsof -i :5001  # Should return nothing
+```
+
+<Tip>
+If all checks pass, you're ready to proceed with [Source Installation](/deployment/source-installation) or [Docker Deployment](/deployment/docker).
+</Tip>

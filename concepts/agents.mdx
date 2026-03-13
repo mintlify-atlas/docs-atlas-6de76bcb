@@ -1,0 +1,496 @@
+---
+title: 'Multi-Agent System'
+description: 'How MiroFish generates and simulates autonomous agents with personalities, memory, and social behaviors'
+---
+
+MiroFish's multi-agent system transforms knowledge graph entities into autonomous social media users with rich personalities, memory, and realistic social interaction behaviors.
+
+## Agent Generation Pipeline
+
+<Steps>
+  <Step title="Entity Extraction">
+    Zep Cloud extracts entities from seed documents according to the domain-specific ontology (10 entity types).
+  </Step>
+  
+  <Step title="Context Enrichment">
+    For each entity, MiroFish builds a rich context by:
+    - Retrieving all related edges (facts about the entity)
+    - Finding connected nodes (related entities)
+    - Running Zep hybrid search for additional context
+    - Combining into ~3000 character context window
+  </Step>
+  
+  <Step title="Profile Generation">
+    An LLM generates a comprehensive profile including demographics, personality, social media behavior, and individual memory.
+  </Step>
+  
+  <Step title="OASIS Agent Creation">
+    Profiles are converted to OASIS-compatible formats (CSV for Twitter, JSON for Reddit) and loaded into simulation.
+  </Step>
+</Steps>
+
+## Agent Profile Structure
+
+Each agent has a multi-layered profile:
+
+```python
+# From oasis_profile_generator.py
+@dataclass
+class OasisAgentProfile:
+    # Identity
+    user_id: int                    # Unique ID in simulation
+    user_name: str                  # Social media handle (e.g., "alice_student_847")
+    name: str                       # Real name (e.g., "Alice Chen")
+    
+    # Public profile
+    bio: str                        # 200-word public bio
+    
+    # Internal personality (2000 words)
+    persona: str                    # Detailed behavior guide for LLM
+    
+    # Demographics
+    age: Optional[int]              # Age (18-70)
+    gender: Optional[str]           # "male", "female", or "other" (for organizations)
+    country: Optional[str]          # Country (e.g., "China")
+    profession: Optional[str]       # Occupation
+    
+    # Psychology
+    mbti: Optional[str]             # MBTI personality type (e.g., "INTJ")
+    interested_topics: List[str]    # Topics of interest
+    
+    # Social media stats
+    karma: int = 1000                      # Reddit karma
+    friend_count: int = 100                # Twitter friends
+    follower_count: int = 150              # Twitter followers
+    statuses_count: int = 500              # Tweet count
+    
+    # Source tracking
+    source_entity_uuid: str         # Original graph entity UUID
+    source_entity_type: str         # Entity type (e.g., "Student")
+    created_at: str                 # Creation timestamp
+```
+
+## Persona Generation
+
+<Info>
+  The persona is a 2000-word detailed description that guides the agent's behavior in simulation. It serves as the LLM system prompt for each agent.
+</Info>
+
+### Individual Entity Personas
+
+For individual people (Student, Professor, Journalist, etc.), the LLM generates:
+
+```python
+# Prompt excerpt from oasis_profile_generator.py
+prompt = f"""
+Generate a detailed social media user profile for social simulation.
+
+Entity: {entity_name}
+Type: {entity_type}  
+Summary: {entity_summary}
+Attributes: {entity_attributes}
+
+Context (from knowledge graph):
+{context}  # Up to 3000 chars of facts, relationships, and background
+
+Generate JSON with:
+
+1. bio: 200-word social media bio
+
+2. persona: 2000-word detailed description including:
+   - Basic info (age, occupation, education, location)
+   - Background (important experiences, relationship to the event, social connections)
+   - Personality traits (MBTI type, core characteristics, emotional expression)
+   - Social media behavior (posting frequency, content preferences, interaction style, language patterns)
+   - Stances and attitudes (opinions on topics, what triggers/moves them)
+   - Unique features (catchphrases, special experiences, personal hobbies)
+   - Individual memory (their role in the event, their past actions and reactions)
+
+3. age: Integer age
+4. gender: "male" or "female"  
+5. mbti: MBTI type (e.g., "INTJ", "ENFP")
+6. country: Country name (Chinese)
+7. profession: Occupation
+8. interested_topics: Array of topics
+"""
+```
+
+**Example persona excerpt:**
+
+> Alice Chen is a 21-year-old junior at Wuhan University majoring in Environmental Science. She has been an active voice on campus regarding sustainability issues. Alice grew up in a middle-class family in Shenzhen and has always been passionate about environmental protection. She is an INFP personality type, often expressing herself through emotional and idealistic language. On social media, Alice posts 2-3 times per day, primarily about campus life, environmental news, and social justice topics. She tends to use emojis frequently and writes in a conversational, sometimes indignant tone when discussing issues she cares about. Her catchphrase is "We deserve better than this!" Alice has a history of organizing small protests and petitions. In the current dormitory formaldehyde incident, Alice was one of the first students to speak out publicly, expressing concern for her peers' health and demanding immediate action from the university administration. She feels personally betrayed by what she sees as institutional negligence...
+
+### Organizational Entity Personas
+
+For organizations (University, Company, MediaOutlet, etc.), the LLM generates institutional account profiles:
+
+```python
+prompt = f"""
+Generate social media account profile for an institution/organization.
+
+Entity: {entity_name}
+Type: {entity_type}
+Context: {context}
+
+Generate JSON with:
+
+1. bio: 200-word professional account description
+
+2. persona: 2000-word account profile including:
+   - Institutional info (official name, nature, founding background, main functions)
+   - Account positioning (account type, target audience, core function)
+   - Communication style (language characteristics, common expressions, taboo topics)
+   - Content characteristics (content types, posting frequency, active time periods)
+   - Official stances (positions on core topics, handling of controversies)
+   - Special notes (representing group demographics, operational habits)
+   - Institutional memory (organization's relationship to the event, past actions and responses)
+
+3. age: Fixed at 30 (virtual age for institutional accounts)
+4. gender: Fixed at "other" (institutional accounts use "other" to indicate non-personal)
+5. mbti: MBTI type describing account style (e.g., "ISTJ" for rigorous and conservative)
+6. country: Country (Chinese)
+7. profession: Institutional function description
+8. interested_topics: Focus areas array
+"""
+```
+
+**Example institutional persona excerpt:**
+
+> Wuhan University Official Account represents the university's public relations and communications office. The account serves as the official voice of the institution, targeting current students, alumni, parents, media, and the general public. Communication style is formal, measured, and carefully vetted, with all posts approved through multiple administrative layers. The account typically posts 1-2 times per day, focusing on official announcements, campus achievements, and institutional news. Language is professional and avoids colloquialisms. The account does not engage in arguments or emotional responses. Response time to incidents is typically 12-24 hours due to approval processes. In the current dormitory formaldehyde situation, the account initially posted a brief statement acknowledging concerns and promising investigation. The account faces pressure to balance transparency with protecting institutional reputation...
+
+## Agent Behavior in Simulation
+
+### OASIS Integration
+
+MiroFish uses the **OASIS** (Open Agent Social Interaction Simulations) framework to run agents:
+
+```python
+# Profiles are converted to OASIS format
+
+# Twitter format (CSV)
+user_id,name,username,user_char,description
+0,Alice Chen,alice_student_847,"Alice Chen is a 21-year-old junior... [full persona]","Environmental Science student passionate about sustainability"
+
+# Reddit format (JSON)
+[
+  {
+    "user_id": 0,
+    "username": "alice_student_847",
+    "name": "Alice Chen",
+    "bio": "Environmental Science student...",
+    "persona": "Alice Chen is a 21-year-old junior... [full persona]",
+    "age": 21,
+    "gender": "female",
+    "mbti": "INFP",
+    "country": "China",
+    "profession": "Student",
+    "interested_topics": ["Environment", "Social Justice", "Campus Life"],
+    "karma": 1200
+  }
+]
+```
+
+### Action Types
+
+Agents can perform platform-specific actions:
+
+<CardGroup cols={2}>
+  <Card title="Twitter Actions" icon="twitter">
+    - **CREATE_POST**: Publish original tweet
+    - **LIKE_POST**: Like someone's tweet
+    - **REPOST**: Retweet without comment
+    - **QUOTE_POST**: Retweet with comment
+    - **FOLLOW**: Follow another user
+    - **DO_NOTHING**: Skip this round
+  </Card>
+  
+  <Card title="Reddit Actions" icon="reddit">
+    - **CREATE_POST**: Post to subreddit
+    - **CREATE_COMMENT**: Comment on post
+    - **LIKE_POST / DISLIKE_POST**: Upvote/downvote post
+    - **LIKE_COMMENT / DISLIKE_COMMENT**: Upvote/downvote comment
+    - **SEARCH_POSTS**: Search for content
+    - **SEARCH_USER**: Find other users
+    - **FOLLOW / MUTE**: Manage connections
+    - **TREND**: Check trending topics
+    - **REFRESH**: Update feed
+    - **DO_NOTHING**: Skip this round
+  </Card>
+</CardGroup>
+
+### Decision-Making Process
+
+Each round, OASIS asks each agent's LLM what action to take:
+
+```python
+# OASIS internal process (simplified)
+for agent in active_agents:
+    # Build context from agent's feed
+    recent_posts = get_agent_feed(agent)
+    
+    # LLM system prompt includes agent's persona
+    system_prompt = f"""
+    You are {agent.name}.
+    
+    Personality and background:
+    {agent.persona}  # 2000-word persona injected here
+    
+    Current situation:
+    {simulation_context}
+    
+    Recent posts you've seen:
+    {recent_posts}
+    
+    Available actions: {available_actions}
+    
+    What do you do next? Respond with action JSON.
+    """
+    
+    # Get agent's decision
+    response = llm.chat(system_prompt)
+    
+    # Execute action
+    execute_action(agent, response.action)
+```
+
+### Contextual Awareness
+
+Agents have limited but realistic context:
+
+- **Feed visibility**: See ~10-20 recent posts based on platform algorithm
+- **Recommendation weights**: Posts ranked by recency (0.4), popularity (0.3), relevance (0.3)
+- **Memory**: Short-term memory of recent interactions within current session
+- **Time awareness**: Agent activity varies by simulated time of day (realistic diurnal patterns)
+
+**Chinese timezone activity multipliers:**
+
+```python
+# From simulation_config_generator.py
+activity_multipliers = {
+    "dead": 0.05,      # 0-5 AM: Almost no activity
+    "morning": 0.4,    # 6-8 AM: Gradually waking up
+    "work": 0.7,       # 9 AM-6 PM: Moderate activity
+    "peak": 1.5,       # 7-10 PM: Peak evening activity
+    "night": 0.5       # 11 PM: Declining activity
+}
+```
+
+## Agent Memory Systems
+
+### Short-Term Memory (OASIS)
+
+During simulation, agents maintain session memory:
+
+- **Recent actions**: What they've posted/liked/commented
+- **Recent feed**: Posts they've seen
+- **Current round**: Simulated time and round number
+
+This memory resets between simulation runs.
+
+### Long-Term Memory (Zep Cloud)
+
+<Tip>
+  MiroFish can optionally enable **graph memory updates**, sending agent activities back to Zep to create persistent, evolving memory.
+</Tip>
+
+When enabled, agent actions are batched and stored in the knowledge graph:
+
+```python
+# From zep_graph_memory_updater.py
+class ZepGraphMemoryUpdater:
+    BATCH_SIZE = 5  # Batch 5 activities per platform
+    
+    def add_activity(self, activity: AgentActivity):
+        # Agent action converted to natural language
+        text = activity.to_episode_text()
+        # Example: "Alice Chen: 发布了一条帖子:「这太不可接受了!我们需要真相!」"
+        
+        # Batch and send to Zep
+        self._activity_queue.put(text)
+        
+        if len(batch) >= self.BATCH_SIZE:
+            combined_text = "\n".join(batch)
+            self.client.graph.add(
+                graph_id=self.graph_id,
+                type="text",
+                data=combined_text
+            )
+```
+
+This creates **temporal graph evolution**:
+
+- **T0 (initial)**: "Alice Chen is a student at Wuhan University"
+- **T1 (simulation)**: "Alice Chen posted: 'This is unacceptable! We need transparency!'"
+- **T2 (simulation)**: "Bob Zhang liked Alice Chen's post about transparency"
+- **T3 (simulation)**: "Alice Chen retweeted Media Outlet's investigation article"
+
+Zep automatically:
+- Extracts new entities mentioned in activities
+- Creates new relationships (e.g., "Alice ENGAGED_WITH Bob")
+- Timestamps all facts with `created_at` and `valid_at` fields
+- Marks old facts as expired when contradicted
+
+### Individual vs. Collective Memory
+
+<CardGroup cols={2}>
+  <Card title="Individual Memory" icon="user">
+    Each agent's persona includes their specific role and past actions in the event:
+    
+    "Alice was one of the first students to speak out about the formaldehyde issue..."
+    
+    This is **static** during simulation but can be updated between runs.
+  </Card>
+  
+  <Card title="Collective Memory" icon="users">
+    The knowledge graph stores the evolving collective understanding:
+    
+    - All entities and relationships
+    - Timeline of events and interactions
+    - Emerging sub-communities and alliances
+    - Sentiment shifts over time
+    
+    This is **dynamic** and grows during simulation.
+  </Card>
+</CardGroup>
+
+## Social Interaction Mechanics
+
+### Network Effects
+
+Agents influence each other through:
+
+1. **Direct interaction**: Likes, retweets, comments create visible connections
+2. **Feed visibility**: Popular posts (high engagement) appear in more feeds
+3. **Follow relationships**: Followed users' posts prioritized in feed
+4. **Viral propagation**: Posts exceeding `viral_threshold` (default 10 interactions) spread exponentially
+
+### Echo Chambers
+
+OASIS simulates filter bubbles:
+
+```python
+# From simulation_config_generator.py
+class PlatformConfig:
+    echo_chamber_strength: float = 0.5  # 0.0 = no echo chamber, 1.0 = complete isolation
+```
+
+- **0.0**: Completely random feed, no preference for similar opinions
+- **0.5**: Moderate echo chamber, agents see mix of similar and diverse views
+- **1.0**: Complete echo chamber, agents only see content from like-minded users
+
+### Opinion Dynamics
+
+Agents can shift opinions based on:
+
+- **Peer influence**: Seeing many posts with a certain stance
+- **Authority figures**: Posts from high-influence entities (officials, media)
+- **Personal values**: Weighted by personality traits and pre-existing stances
+- **Information exposure**: New facts can change minds
+
+However, agent personas provide **inertia** - core beliefs change slowly.
+
+## Agent Types and Roles
+
+### Individual Agents
+
+<CardGroup cols={2}>
+  <Card title="Students" icon="graduation-cap">
+    - High social media activity
+    - Emotionally expressive
+    - Form opinion leaders within peer groups
+    - Quick to mobilize and organize
+  </Card>
+  
+  <Card title="Professors/Experts" icon="chalkboard-teacher">
+    - Authoritative voices
+    - More measured, analytical tone
+    - Lower post frequency but higher engagement per post
+    - Influence through expertise
+  </Card>
+  
+  <Card title="Journalists" icon="newspaper">
+    - Information brokers
+    - High posting frequency
+    - Share news and ask questions
+    - Bridge different communities
+  </Card>
+  
+  <Card title="Public Figures" icon="star">
+    - Large follower base
+    - Amplification effect
+    - Posts reach wide audience quickly
+    - Can shift public narrative
+  </Card>
+</CardGroup>
+
+### Institutional Agents
+
+<CardGroup cols={2}>
+  <Card title="Universities" icon="university">
+    - Slow response times (approval processes)
+    - Official, formal language
+    - Reputation management priority
+    - Limited engagement with critics
+  </Card>
+  
+  <Card title="Government Agencies" icon="landmark">
+    - Authoritative statements
+    - Policy announcements
+    - Regulatory actions
+    - High credibility impact
+  </Card>
+  
+  <Card title="Media Outlets" icon="broadcast-tower">
+    - News reporting and investigation
+    - High posting frequency
+    - Mix of factual reporting and opinion
+    - Agenda-setting power
+  </Card>
+  
+  <Card title="Companies" icon="building">
+    - Crisis management mode
+    - PR-focused language
+    - Legal considerations
+    - Stakeholder communication
+  </Card>
+</CardGroup>
+
+## Profile Generation Performance
+
+<Info>
+  Profile generation is parallelized and optimized for large-scale simulations.
+</Info>
+
+**Parallel processing:**
+
+```python
+# From oasis_profile_generator.py
+with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    futures = {
+        executor.submit(generate_single_profile, idx, entity): (idx, entity)
+        for idx, entity in enumerate(entities)
+    }
+    
+    for future in concurrent.futures.as_completed(futures):
+        result_idx, profile, error = future.result()
+        profiles[result_idx] = profile
+        
+        # Real-time writing to file
+        save_profiles_realtime()
+```
+
+**Performance metrics:**
+- **5 parallel workers** by default
+- **~10-20 seconds per profile** (depending on LLM)
+- **100 agents**: ~10-30 minutes total
+- **Real-time file updates**: Simulation can start before all profiles complete
+- **Error recovery**: Failed profiles fall back to rule-based generation
+
+**Cost optimization:**
+- Use cheaper models (Qwen-Plus) instead of GPT-4
+- Reduce persona length for less critical agents
+- Pre-generate profiles for common entity types
+- Cache and reuse profiles across similar simulations
+
+<Warning>
+  Each profile generation makes 1-3 LLM calls (retries on JSON parsing failures). For 100 agents, expect 100-300 API calls costing $5-15 on Qwen-Plus.
+</Warning>

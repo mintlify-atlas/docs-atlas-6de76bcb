@@ -1,0 +1,580 @@
+---
+title: Interaction & Exploration
+description: Chat with agents, query the Report Agent, and explore simulation insights
+---
+
+## Overview
+
+MiroFish provides powerful interaction capabilities to help you understand simulation results and agent behaviors. You can interview individual agents, query the Report Agent for insights, and explore the knowledge graph interactively.
+
+## Interview Individual Agents
+
+One of MiroFish's unique features is the ability to "interview" agents about their simulated behaviors, motivations, and perspectives.
+
+### How Agent Interviews Work
+
+<Steps>
+  <Step title="Agent Context Loading">
+    The agent's full persona, memory, and action history are loaded
+  </Step>
+  
+  <Step title="Question Processing">
+    Your question is presented to the agent's LLM-powered persona
+  </Step>
+  
+  <Step title="In-Character Response">
+    The agent responds based on their profile, experiences, and simulated worldview
+  </Step>
+</Steps>
+
+<Info>
+Agents respond **in character**, reflecting their persona, biases, and simulated experiences during the simulation.
+</Info>
+
+### Starting an Interview
+
+```bash
+POST /api/simulation/{simulation_id}/interview
+Content-Type: application/json
+
+{
+  "agent_id": 23,
+  "message": "Why did you support the new AI policy?",
+  "chat_history": []
+}
+```
+
+### Parameters
+
+<ParamField path="agent_id" type="integer" required>
+  The ID of the agent to interview (from simulation profiles)
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  Your question or prompt to the agent
+</ParamField>
+
+<ParamField path="chat_history" type="array">
+  Previous conversation history for multi-turn interviews
+  
+  ```json
+  [
+    {"role": "user", "content": "What's your opinion on..."},
+    {"role": "assistant", "content": "As a professor, I believe..."}
+  ]
+  ```
+</ParamField>
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "agent_id": 23,
+    "agent_name": "Dr. Sarah Chen",
+    "response": "As a professor who's spent years in academia, I supported the policy because it addresses a critical need for AI literacy among students. My research in AI ethics made me particularly aware of the risks of unregulated AI use in education. During the simulation, I witnessed concerning instances of students relying too heavily on AI without understanding its limitations. The policy provides necessary guardrails while still allowing innovation.",
+    "tool_calls": [],
+    "timestamp": "2026-03-13T16:15:00"
+  }
+}
+```
+
+### Example Interview Questions
+
+<CardGroup cols={2}>
+  <Card title="Motivations" icon="question">
+    - "What motivated your position on this issue?"
+    - "Why did you change your stance in round 45?"
+    - "What were your main concerns?"
+  </Card>
+  
+  <Card title="Behaviors" icon="chart-line">
+    - "Why did you retweet that particular post?"
+    - "What influenced your decision to comment?"
+    - "How did others' reactions affect you?"
+  </Card>
+  
+  <Card title="Relationships" icon="users">
+    - "How did you interact with student groups?"
+    - "What was your reaction to [other agent]'s posts?"
+    - "Who influenced your thinking most?"
+  </Card>
+  
+  <Card title="Predictions" icon="crystal-ball">
+    - "What do you think will happen next?"
+    - "How would you respond if...?"
+    - "What are the long-term implications?"
+  </Card>
+</CardGroup>
+
+### Multi-Turn Conversations
+
+Build on previous responses for deeper insights:
+
+```bash
+POST /api/simulation/{simulation_id}/interview
+{
+  "agent_id": 23,
+  "message": "Can you elaborate on the 'concerning instances' you mentioned?",
+  "chat_history": [
+    {
+      "role": "user", 
+      "content": "Why did you support the new AI policy?"
+    },
+    {
+      "role": "assistant",
+      "content": "As a professor who's spent years in academia..."
+    }
+  ]
+}
+```
+
+<Tip>
+Maintain conversation context by including full chat history for follow-up questions. This enables natural, flowing interviews.
+</Tip>
+
+## Query the Report Agent
+
+The Report Agent can answer questions about simulation results using its analysis tools.
+
+### Interactive Q&A
+
+```bash
+POST /api/report/chat
+Content-Type: application/json
+
+{
+  "simulation_id": "sim_m1n2o3p4",
+  "message": "What were the main concerns raised by students?",
+  "chat_history": []
+}
+```
+
+### Report Agent Capabilities
+
+Unlike agent interviews, the Report Agent:
+
+<CardGroup cols={2}>
+  <Card title="Uses Tools" icon="wrench">
+    Autonomously calls analysis functions:
+    - Graph search
+    - Statistical queries
+    - Agent interviews
+    - Insight generation
+  </Card>
+  
+  <Card title="Objective Analysis" icon="microscope">
+    Provides analytical perspective:
+    - Pattern identification
+    - Data synthesis
+    - Multi-source insights
+    - Trend analysis
+  </Card>
+</CardGroup>
+
+### Example Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "response": "Based on graph analysis and simulation data, students raised three primary concerns:\n\n1. **Privacy (67% of student posts)**: Worry about AI systems accessing their work and personal data without consent.\n\n2. **Academic Integrity (43%)**: Confusion about what constitutes acceptable AI use vs. cheating.\n\n3. **Implementation Timeline (31%)**: Feeling the policy was rushed without adequate student input.\n\nInterestingly, these concerns varied by student type: Computer Science students focused on technical privacy issues, while Liberal Arts students emphasized the academic integrity aspects.",
+    "tool_calls": [
+      {
+        "tool": "search_graph",
+        "query": "student concerns AI policy",
+        "results_count": 34
+      },
+      {
+        "tool": "panorama",
+        "entity_type": "Student",
+        "stats": {"total": 45, "active": 42}
+      }
+    ],
+    "sources": [
+      "Knowledge graph: 34 relevant facts",
+      "Simulation actions: 247 student posts analyzed",
+      "Agent interviews: 3 representative students"
+    ]
+  }
+}
+```
+
+### Useful Report Agent Queries
+
+**Quantitative Questions:**
+- "How many agents participated in the discussion?"
+- "What percentage of posts were supportive vs. critical?"
+- "Which agent had the most influence?"
+
+**Qualitative Questions:**
+- "What themes emerged in the conversation?"
+- "How did the discussion evolve over time?"
+- "What were the key turning points?"
+
+**Comparative Questions:**
+- "How did Twitter and Reddit discussions differ?"
+- "What distinguished professor responses from student responses?"
+- "Which stakeholder groups aligned in their views?"
+
+## Exploring the Knowledge Graph
+
+The knowledge graph contains all entities and relationships extracted from your seed materials, plus simulation-generated insights.
+
+### Graph Search
+
+```bash
+POST /api/report/tools/search
+Content-Type: application/json
+
+{
+  "graph_id": "mirofish_x1y2z3",
+  "query": "student privacy concerns",
+  "limit": 20
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "query": "student privacy concerns",
+    "results_count": 18,
+    "facts": [
+      {
+        "uuid": "fact_abc123",
+        "fact": "Student activists organized a petition regarding AI privacy",
+        "entities": ["Student Activists", "AI Privacy Petition"],
+        "relevance_score": 0.92
+      },
+      {
+        "uuid": "fact_def456",
+        "fact": "University stated AI systems would not access student emails",
+        "entities": ["State University", "AI Systems"],
+        "relevance_score": 0.87
+      }
+    ]
+  }
+}
+```
+
+### Graph Statistics
+
+```bash
+POST /api/report/tools/statistics
+{
+  "graph_id": "mirofish_x1y2z3"
+}
+```
+
+**Returns:**
+- Total nodes and edges
+- Entity type distribution
+- Relationship type counts
+- Graph density metrics
+
+## Understanding Agent Behaviors
+
+### View Agent Action History
+
+```bash
+GET /api/simulation/{simulation_id}/actions?agent_id=23&limit=50
+```
+
+See all actions taken by a specific agent:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "round_num": 12,
+      "timestamp": "2026-03-13T14:05:30",
+      "platform": "twitter",
+      "agent_id": 23,
+      "agent_name": "Dr. Sarah Chen",
+      "action_type": "CREATE_POST",
+      "action_args": {
+        "content": "Important to consider both innovation and student welfare in new AI policy discussions."
+      },
+      "success": true
+    },
+    {
+      "round_num": 15,
+      "platform": "reddit",
+      "action_type": "COMMENT_POST",
+      "action_args": {
+        "post_id": 87,
+        "content": "As someone who researches AI ethics, I appreciate these concerns about transparency..."
+      }
+    }
+  ]
+}
+```
+
+### Agent Statistics
+
+```bash
+GET /api/simulation/{simulation_id}/run/agent-stats
+```
+
+Get activity metrics for all agents:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "agent_id": 17,
+      "agent_name": "StudentVoice2024",
+      "total_actions": 142,
+      "twitter_actions": 67,
+      "reddit_actions": 75,
+      "action_types": {
+        "CREATE_POST": 23,
+        "COMMENT_POST": 89,
+        "LIKE_POST": 30
+      },
+      "first_action_time": "2026-03-13T14:00:15",
+      "last_action_time": "2026-03-13T16:45:22"
+    }
+  ]
+}
+```
+
+<Note>
+Agents with higher total actions had more influence on the simulation dynamics.
+</Note>
+
+## Simulation Timeline
+
+View how the simulation evolved over time:
+
+```bash
+GET /api/simulation/{simulation_id}/run/timeline?start_round=0&end_round=50
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "round_num": 1,
+      "twitter_actions": 5,
+      "reddit_actions": 3,
+      "total_actions": 8,
+      "active_agents_count": 7,
+      "action_types": {
+        "CREATE_POST": 8
+      },
+      "first_action_time": "2026-03-13T14:00:05"
+    },
+    {
+      "round_num": 25,
+      "twitter_actions": 34,
+      "reddit_actions": 42,
+      "total_actions": 76,
+      "active_agents_count": 38,
+      "action_types": {
+        "CREATE_POST": 12,
+        "COMMENT_POST": 48,
+        "LIKE_POST": 16
+      }
+    }
+  ]
+}
+```
+
+### Identifying Key Moments
+
+Look for rounds with:
+- Sudden activity spikes (viral moments)
+- Shifts in active agent count (engagement changes)
+- Changes in action type distribution (from posting to commenting = discussion deepening)
+
+## Tips for Effective Interaction
+
+### Interview Best Practices
+
+<Steps>
+  <Step title="Start Broad">
+    Begin with open-ended questions: "What was your experience during the simulation?"
+  </Step>
+  
+  <Step title="Drill Down">
+    Follow up on interesting points: "You mentioned X, can you elaborate?"
+  </Step>
+  
+  <Step title="Reference Specifics">
+    Ask about particular actions: "Why did you post Y in round 23?"
+  </Step>
+  
+  <Step title="Explore Relationships">
+    Investigate interactions: "How did Z's comments influence you?"
+  </Step>
+</Steps>
+
+### Query Strategies
+
+<CardGroup cols={2}>
+  <Card title="Report Agent" icon="robot">
+    **Best for:**
+    - Aggregate analysis
+    - Pattern identification
+    - Statistical questions
+    - Cross-referencing sources
+    
+    **Example:**
+    "What were the overall trends in sentiment over time?"
+  </Card>
+  
+  <Card title="Agent Interviews" icon="user">
+    **Best for:**
+    - Individual perspectives
+    - Motivations and reasoning
+    - Personal experiences
+    - Counterfactual scenarios
+    
+    **Example:**
+    "How would you have reacted differently if...?"
+  </Card>
+</CardGroup>
+
+## Advanced Exploration
+
+### Cross-Platform Analysis
+
+Compare agent behaviors across platforms:
+
+```bash
+# Twitter actions
+GET /api/simulation/{simulation_id}/actions?platform=twitter&agent_id=23
+
+# Reddit actions  
+GET /api/simulation/{simulation_id}/actions?platform=reddit&agent_id=23
+```
+
+Agents often behave differently on Twitter (brief, reactive) vs. Reddit (detailed, discursive).
+
+### Influential Agent Identification
+
+Find agents who drove the conversation:
+
+1. **High action count**: Many posts/comments
+2. **High influence weight**: Configured as influential (from profiles)
+3. **Viral content**: Posts that triggered many responses
+
+```bash
+GET /api/simulation/{simulation_id}/run/agent-stats
+```
+
+Sort by `total_actions` descending.
+
+### Network Analysis
+
+Identify clusters and communities:
+
+```bash
+POST /api/report/chat
+{
+  "simulation_id": "sim_m1n2o3p4",
+  "message": "Which agents formed distinct communities or echo chambers?"
+}
+```
+
+The Report Agent will use graph tools to identify interaction patterns.
+
+## Exporting Data
+
+### Download Action History
+
+Action logs are stored as JSONL files in the simulation directory:
+
+```
+sim_m1n2o3p4/
+├── twitter/actions.jsonl
+└── reddit/actions.jsonl
+```
+
+Each line is a JSON object representing one action:
+
+```json
+{"round": 23, "agent_id": 17, "action_type": "CREATE_POST", "content": "...", "timestamp": "..."}
+```
+
+<Tip>
+Use these files for custom analysis, visualization, or integration with external tools.
+</Tip>
+
+### Export Graph Data
+
+```bash
+GET /api/graph/data/{graph_id}
+```
+
+Download complete knowledge graph (nodes + edges) as JSON.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Agent gives generic responses">
+    **Cause**: Agent may lack specific memories or context
+    
+    **Solution**: Ask about specific actions or timeframes:
+    - Instead of "What do you think about X?"
+    - Try "In round 25, you posted Y. What motivated that?"
+  </Accordion>
+  
+  <Accordion title="Report Agent can't answer question">
+    **Cause**: Question may be too vague or outside simulation scope
+    
+    **Solution**: 
+    - Rephrase more specifically
+    - Break complex questions into parts
+    - Verify the information exists in the simulation
+  </Accordion>
+  
+  <Accordion title="No action history for agent">
+    **Cause**: Agent may not have been active during simulation
+    
+    **Check**:
+    ```bash
+    GET /api/simulation/{simulation_id}/profiles
+    ```
+    
+    Verify agent exists and review their `activity_level` in config.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Download Report" href="/guide/generating-reports" icon="download">
+    Export comprehensive analysis in Markdown format
+  </Card>
+  <Card title="New Simulation" href="/guide/upload-seed-materials" icon="plus">
+    Start a new prediction project
+  </Card>
+</CardGroup>
+
+## Privacy and Ethics
+
+<Warning>
+**Important Reminder**: Agents are AI-generated personas, not real people. Their "opinions" and "experiences" are simulated based on:
+- Seed material content
+- Configured personas
+- LLM model behaviors
+
+Do not treat agent responses as statements from real individuals.
+</Warning>
+
+When using interview insights:
+- Clearly label them as simulation-generated
+- Cross-reference with actual data sources
+- Use for scenario exploration, not as definitive predictions
+- Consider biases in both source materials and AI models

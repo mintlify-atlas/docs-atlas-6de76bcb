@@ -1,0 +1,435 @@
+---
+title: Running Simulations
+description: Execute and monitor your swarm intelligence prediction simulation
+---
+
+## Overview
+
+Once your environment is prepared, you can run the simulation to see how agents interact on social media platforms. MiroFish executes simulations in background processes, allowing real-time monitoring of agent activities and platform dynamics.
+
+## Starting a Simulation
+
+### Basic Execution
+
+```bash
+POST /api/simulation/run
+Content-Type: application/json
+
+{
+  "simulation_id": "sim_m1n2o3p4",
+  "platform": "parallel",
+  "max_rounds": 120
+}
+```
+
+### Parameters
+
+<ParamField path="simulation_id" type="string" required>
+  The simulation ID from your prepared environment
+</ParamField>
+
+<ParamField path="platform" type="string" default="parallel">
+  Which platforms to run:
+  - `parallel`: Both Twitter and Reddit simultaneously (recommended)
+  - `twitter`: Twitter only
+  - `reddit`: Reddit only
+</ParamField>
+
+<ParamField path="max_rounds" type="integer">
+  Maximum simulation rounds. If omitted, uses LLM-generated recommendation from config.
+  
+  <Info>
+  One round typically represents 30-60 minutes of simulated time, depending on your configuration.
+  </Info>
+</ParamField>
+
+<ParamField path="enable_graph_memory_update" type="boolean" default="false">
+  Whether to update the knowledge graph with agent activities in real-time
+</ParamField>
+
+<ParamField path="graph_id" type="string">
+  Required if `enable_graph_memory_update` is true
+</ParamField>
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_m1n2o3p4",
+    "runner_status": "starting",
+    "total_rounds": 120,
+    "total_simulation_hours": 72,
+    "twitter_running": true,
+    "reddit_running": true,
+    "started_at": "2026-03-13T14:00:00",
+    "process_pid": 12345
+  }
+}
+```
+
+## Simulation Execution Flow
+
+<Steps>
+  <Step title="Initialization">
+    - Load simulation configuration
+    - Initialize platform environments (Twitter/Reddit databases)
+    - Load agent profiles
+  </Step>
+  
+  <Step title="Round Execution">
+    For each round:
+    - Calculate simulated time (hour of day)
+    - Determine active agents based on activity patterns
+    - Agents perform actions (post, comment, like, share)
+    - Platform state updates
+  </Step>
+  
+  <Step title="Action Logging">
+    Every agent action is logged to:
+    - `twitter/actions.jsonl`
+    - `reddit/actions.jsonl`
+  </Step>
+  
+  <Step title="Completion">
+    Simulation ends when:
+    - Maximum rounds reached, OR
+    - No more active agents
+  </Step>
+</Steps>
+
+## Monitoring Progress
+
+### Real-time Status
+
+```bash
+GET /api/simulation/{simulation_id}/run/status
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_m1n2o3p4",
+    "runner_status": "running",
+    "current_round": 45,
+    "total_rounds": 120,
+    "simulated_hours": 23,
+    "total_simulation_hours": 72,
+    "progress_percent": 37.5,
+    
+    "twitter_current_round": 45,
+    "reddit_current_round": 44,
+    "twitter_simulated_hours": 23,
+    "reddit_simulated_hours": 22,
+    
+    "twitter_running": true,
+    "reddit_running": true,
+    "twitter_completed": false,
+    "reddit_completed": false,
+    
+    "twitter_actions_count": 1847,
+    "reddit_actions_count": 2103,
+    "total_actions_count": 3950,
+    
+    "started_at": "2026-03-13T14:00:00",
+    "updated_at": "2026-03-13T14:22:15"
+  }
+}
+```
+
+### Status Values
+
+<CardGroup cols={3}>
+  <Card title="idle" icon="circle">
+    Not running
+  </Card>
+  <Card title="starting" icon="circle-notch">
+    Initializing
+  </Card>
+  <Card title="running" icon="circle-play">
+    Actively simulating
+  </Card>
+  <Card title="paused" icon="circle-pause">
+    Temporarily paused
+  </Card>
+  <Card title="completed" icon="circle-check">
+    Successfully finished
+  </Card>
+  <Card title="stopped" icon="circle-stop">
+    Manually stopped
+  </Card>
+  <Card title="failed" icon="circle-xmark">
+    Error occurred
+  </Card>
+</CardGroup>
+
+## Viewing Recent Actions
+
+### Live Activity Feed
+
+```bash
+GET /api/simulation/{simulation_id}/run/status/detailed
+```
+
+Includes the 50 most recent agent actions:
+
+```json
+{
+  "recent_actions": [
+    {
+      "round_num": 45,
+      "timestamp": "2026-03-13T14:22:15",
+      "platform": "twitter",
+      "agent_id": 23,
+      "agent_name": "Dr. Sarah Chen",
+      "action_type": "CREATE_POST",
+      "action_args": {
+        "content": "Interesting developments in AI policy discussions..."
+      },
+      "success": true
+    },
+    {
+      "round_num": 45,
+      "timestamp": "2026-03-13T14:22:18",
+      "platform": "reddit",
+      "agent_id": 17,
+      "agent_name": "StudentVoice2024",
+      "action_type": "COMMENT_POST",
+      "action_args": {
+        "post_id": 142,
+        "content": "This affects all of us. We need transparency."
+      },
+      "success": true
+    }
+  ]
+}
+```
+
+### Action Types
+
+**Twitter Actions:**
+- `CREATE_POST`: Tweet
+- `LIKE_POST`: Like a tweet
+- `RETWEET`: Retweet
+- `REPLY_POST`: Reply to tweet
+
+**Reddit Actions:**
+- `CREATE_POST`: Submit post
+- `COMMENT_POST`: Comment on post
+- `VOTE_POST`: Upvote/downvote post
+- `VOTE_COMMENT`: Vote on comment
+
+## Platform-Specific Dynamics
+
+### Parallel Execution
+
+When running both platforms:
+
+<CardGroup cols={2}>
+  <Card title="Twitter" icon="twitter">
+    - Faster-paced interactions
+    - More frequent posting
+    - Higher retweet/viral potential
+    - Character limits encourage brevity
+  </Card>
+  
+  <Card title="Reddit" icon="reddit">
+    - Longer-form discussions
+    - Thread-based conversations
+    - Voting affects visibility
+    - Community-focused interactions
+  </Card>
+</CardGroup>
+
+<Info>
+Platforms run independently but agents are the same across both, allowing cross-platform behavior analysis.
+</Info>
+
+## Pausing and Stopping
+
+### Pause Simulation
+
+```bash
+POST /api/simulation/{simulation_id}/run/pause
+```
+
+Temporarily halts execution. Can be resumed later.
+
+### Resume Simulation
+
+```bash
+POST /api/simulation/{simulation_id}/run/resume
+```
+
+### Stop Simulation
+
+```bash
+POST /api/simulation/{simulation_id}/run/stop
+```
+
+<Warning>
+Stopping terminates the simulation process. You cannot resume from the stopped point - you would need to restart from round 1.
+</Warning>
+
+## Understanding Simulation Parameters
+
+### Time Configuration
+
+The simulation operates on compressed time:
+
+```json
+{
+  "total_simulation_hours": 72,    // Simulates 3 days
+  "minutes_per_round": 30,         // Each round = 30 min
+  "total_rounds": 144               // 72 hours / 0.5 hours per round
+}
+```
+
+### Activity Patterns
+
+Agents follow realistic daily patterns:
+
+**Peak Hours (19:00-22:00)**
+- 1.5x normal activity
+- More agents online
+- Higher interaction rates
+
+**Off-Peak Hours (00:00-05:00)**  
+- Minimal activity
+- Most agents offline
+- Few new posts
+
+**Work Hours (09:00-18:00)**
+- Moderate activity
+- Professional agents more active
+- Student agents less active
+
+## Simulation Output Files
+
+During execution, files are created in the simulation directory:
+
+```
+sim_m1n2o3p4/
+├── simulation.log              # Main process log
+├── twitter/
+│   ├── actions.jsonl          # Twitter agent actions
+│   └── twitter_simulation.db  # Twitter platform state
+├── reddit/
+│   ├── actions.jsonl          # Reddit agent actions  
+│   └── reddit_simulation.db   # Reddit platform state
+├── simulation_config.json     # Configuration used
+├── reddit_profiles.json       # Agent profiles (Reddit)
+├── twitter_profiles.csv       # Agent profiles (Twitter)
+└── run_state.json            # Execution state
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Simulation not starting">
+    **Check:**
+    - Simulation status is "ready" before running
+    - All required files exist (profiles, config)
+    - No other simulation already running for this ID
+    
+    **View logs:**
+    ```bash
+    GET /api/simulation/{simulation_id}/logs
+    ```
+  </Accordion>
+  
+  <Accordion title="Process crashed or failed">
+    **Common causes:**
+    - Invalid configuration JSON
+    - Insufficient system resources
+    - Database corruption
+    
+    **Solution:**
+    ```bash
+    # Clean logs and restart
+    POST /api/simulation/{simulation_id}/cleanup
+    POST /api/simulation/{simulation_id}/run
+    ```
+  </Accordion>
+  
+  <Accordion title="Low activity / few actions">
+    **Possible issues:**
+    - Agents not matching active hours for current simulated time
+    - Activity levels too low in config
+    - Not enough initial posts to trigger discussions
+    
+    **Review:**
+    - Agent activity_level values
+    - active_hours arrays
+    - event_config.initial_posts
+  </Accordion>
+  
+  <Accordion title="Simulation stuck on one platform">
+    If Twitter completes but Reddit doesn't (or vice versa):
+    - Check platform-specific logs in `twitter/actions.jsonl` or `reddit/actions.jsonl`
+    - Look for error events in action logs
+    - Verify both platforms have valid agent profiles
+  </Accordion>
+</AccordionGroup>
+
+## Performance Considerations
+
+### System Resources
+
+- **CPU**: Each agent action involves LLM calls, which can be CPU-intensive
+- **Memory**: Large simulations (100+ agents) may use 2-4GB RAM
+- **Network**: Frequent API calls to LLM providers
+
+### Optimization Tips
+
+<Tip>
+**Reduce rounds**: Start with shorter simulations (24-48 hours) to test before running longer scenarios.
+</Tip>
+
+1. **Limit concurrent agents**: Adjust `agents_per_hour_max` in config
+2. **Fewer platforms**: Run Twitter or Reddit only instead of parallel
+3. **Simpler agents**: Use template-based profiles instead of LLM-generated
+4. **Batch actions**: System already batches, but monitor logs for bottlenecks
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Generate Report" href="/guide/generating-reports" icon="file-chart-column">
+    Create analysis reports from simulation results
+  </Card>
+  <Card title="Interact with Agents" href="/guide/interaction" icon="comments">
+    Interview individual agents about their behaviors
+  </Card>
+</CardGroup>
+
+## Advanced Features
+
+### Graph Memory Updates
+
+Enable real-time knowledge graph updates:
+
+```bash
+POST /api/simulation/run
+{
+  "simulation_id": "sim_m1n2o3p4",
+  "enable_graph_memory_update": true,
+  "graph_id": "mirofish_x1y2z3"
+}
+```
+
+Agent actions are added as episodes to the Zep graph, enriching the knowledge base with simulation insights.
+
+### Action History Analysis
+
+```bash
+GET /api/simulation/{simulation_id}/actions?platform=twitter&limit=100
+```
+
+Retrieve historical actions for analysis:
+- Filter by platform, agent, or round
+- Export for external analysis
+- Build custom visualizations

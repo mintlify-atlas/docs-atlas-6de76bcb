@@ -1,0 +1,641 @@
+---
+title: 'Workflow and Process'
+description: 'Complete workflow from seed materials to prediction reports in MiroFish'
+---
+
+MiroFish transforms seed documents into actionable future predictions through a 5-stage pipeline that combines knowledge graph construction, agent simulation, and AI-powered report generation.
+
+## Overview of the 5-Stage Process
+
+<CardGroup cols={3}>
+  <Card title="1. Graph Construction" icon="project-diagram">
+    Extract entities and relationships from seed materials using GraphRAG
+  </Card>
+  <Card title="2. Environment Setup" icon="users-cog">
+    Generate detailed agent profiles from graph entities
+  </Card>
+  <Card title="3. Simulation" icon="play-circle">
+    Run parallel Twitter and Reddit simulations with thousands of agents
+  </Card>
+  <Card title="4. Report Generation" icon="file-chart-line">
+    Analyze simulation results and generate prediction reports
+  </Card>
+  <Card title="5. Interaction" icon="comments">
+    Chat with agents and explore simulation outcomes
+  </Card>
+</CardGroup>
+
+## Stage 1: Graph Construction
+
+<Info>
+  This stage builds a knowledge graph from seed materials using Zep Cloud's GraphRAG capabilities.
+</Info>
+
+### Input Requirements
+
+Users provide two key inputs:
+
+1. **Seed Materials** (PDF, Markdown, or TXT files up to 50MB)
+   - News articles
+   - Policy documents  
+   - Social media posts
+   - Any text describing the scenario to simulate
+
+2. **Simulation Requirement** (natural language description)
+   - What outcome to predict
+   - What variables to inject
+   - What scenarios to explore
+
+### Ontology Generation
+
+Before graph construction, an LLM generates a domain-specific ontology:
+
+```python
+# From ontology_generator.py
+class OntologyGenerator:
+    def generate(
+        self,
+        document_texts: List[str],
+        simulation_requirement: str,
+        additional_context: Optional[str] = None
+    ) -> Dict[str, Any]:
+        # LLM analyzes content and generates ontology
+        messages = [
+            {"role": "system", "content": ONTOLOGY_SYSTEM_PROMPT},
+            {"role": "user", "content": user_message}
+        ]
+        
+        result = self.llm_client.chat_json(
+            messages=messages,
+            temperature=0.3,
+            max_tokens=4096
+        )
+        
+        # Returns entity_types and edge_types
+        return result
+```
+
+**Ontology structure:**
+- **10 entity types** (8 specific + 2 generic fallbacks: Person, Organization)
+- **6-10 edge types** (relationships like WORKS_FOR, COMMENTS_ON, RESPONDS_TO)
+- **Attributes** for each type (avoiding reserved names: uuid, name, summary)
+
+Example ontology output:
+
+```json
+{
+  "entity_types": [
+    {
+      "name": "Student",
+      "description": "University student involved in the event",
+      "attributes": [
+        {"name": "department", "type": "text"},
+        {"name": "year_level", "type": "text"}
+      ]
+    },
+    {
+      "name": "University",
+      "description": "Educational institution",
+      "attributes": [
+        {"name": "location", "type": "text"}
+      ]
+    }
+  ],
+  "edge_types": [
+    {
+      "name": "STUDIES_AT",
+      "description": "Student enrollment relationship",
+      "source_targets": [
+        {"source": "Student", "target": "University"}
+      ]
+    }
+  ]
+}
+```
+
+### Graph Building Process
+
+With the ontology defined, MiroFish constructs the graph:
+
+<Steps>
+  <Step title="Create Graph">
+    A new Zep Cloud graph is created with a unique ID: `mirofish_{random_hash}`
+  </Step>
+  
+  <Step title="Set Ontology">
+    The generated ontology is registered with Zep using dynamic Pydantic models:
+    
+    ```python
+    # Zep requires Pydantic models for ontology
+    entity_class = type(name, (EntityModel,), {
+        "__doc__": description,
+        "attribute_name": Field(description=attr_desc, default=None)
+    })
+    
+    self.client.graph.set_ontology(
+        graph_ids=[graph_id],
+        entities=entity_types,
+        edges=edge_definitions
+    )
+    ```
+  </Step>
+  
+  <Step title="Split Text">
+    Documents are chunked into 500-character segments with 50-character overlap for processing.
+  </Step>
+  
+  <Step title="Batch Processing">
+    Text chunks are sent to Zep in batches of 3:
+    
+    ```python
+    episodes = [
+        EpisodeData(data=chunk, type="text")
+        for chunk in batch_chunks
+    ]
+    
+    batch_result = self.client.graph.add_batch(
+        graph_id=graph_id,
+        episodes=episodes
+    )
+    ```
+  </Step>
+  
+  <Step title="Wait for Processing">
+    Zep processes episodes asynchronously. MiroFish polls each episode's `processed` status until complete (timeout: 600 seconds).
+  </Step>
+  
+  <Step title="Retrieve Graph Data">
+    Final graph statistics and entity/edge data are fetched:
+    
+    ```python
+    nodes = fetch_all_nodes(self.client, graph_id)  # Paginated
+    edges = fetch_all_edges(self.client, graph_id)  # Paginated
+    
+    return GraphInfo(
+        graph_id=graph_id,
+        node_count=len(nodes),
+        edge_count=len(edges),
+        entity_types=list(entity_types)
+    )
+    ```
+  </Step>
+</Steps>
+
+**Typical output:**
+- **Nodes**: 50-200 entities extracted from documents
+- **Edges**: 100-500 relationships between entities
+- **Processing time**: 2-5 minutes for ~10K words
+
+## Stage 2: Environment Setup
+
+<Info>
+  This stage transforms graph entities into simulation agents with detailed personalities and social media behavior profiles.
+</Info>
+
+### Agent Profile Generation
+
+Each entity in the graph becomes an autonomous agent:
+
+```python
+# From oasis_profile_generator.py
+class OasisProfileGenerator:
+    def generate_profile_from_entity(
+        self, 
+        entity: EntityNode, 
+        user_id: int,
+        use_llm: bool = True
+    ) -> OasisAgentProfile:
+        # Build rich context from entity
+        context = self._build_entity_context(entity)
+        
+        # LLM generates detailed persona
+        profile_data = self._generate_profile_with_llm(
+            entity_name=entity.name,
+            entity_type=entity.get_entity_type(),
+            entity_summary=entity.summary,
+            entity_attributes=entity.attributes,
+            context=context
+        )
+        
+        return OasisAgentProfile(
+            user_id=user_id,
+            user_name=self._generate_username(entity.name),
+            name=entity.name,
+            bio=profile_data.get("bio"),
+            persona=profile_data.get("persona"),  # 2000-word detailed description
+            age=profile_data.get("age"),
+            gender=profile_data.get("gender"),
+            mbti=profile_data.get("mbti"),
+            country=profile_data.get("country"),
+            profession=profile_data.get("profession"),
+            interested_topics=profile_data.get("interested_topics")
+        )
+```
+
+### Context Enrichment
+
+Before profile generation, MiroFish enriches entity context using Zep's hybrid search:
+
+1. **Search edges** (relationships/facts) related to the entity
+2. **Search nodes** (related entities) to understand connections
+3. **Extract attributes** from the entity itself
+4. **Combine into rich context** (~3000 characters max)
+
+```python
+def _build_entity_context(self, entity: EntityNode) -> str:
+    context_parts = []
+    
+    # 1. Entity attributes
+    if entity.attributes:
+        context_parts.append("### Entity Attributes\n" + format_attrs(entity.attributes))
+    
+    # 2. Related edges (facts)
+    if entity.related_edges:
+        context_parts.append("### Related Facts\n" + format_edges(entity.related_edges))
+    
+    # 3. Related nodes
+    if entity.related_nodes:
+        context_parts.append("### Related Entities\n" + format_nodes(entity.related_nodes))
+    
+    # 4. Zep hybrid search for additional context
+    zep_results = self._search_zep_for_entity(entity)
+    if zep_results.get("facts"):
+        context_parts.append("### Additional Facts\n" + format_facts(zep_results["facts"]))
+    
+    return "\n\n".join(context_parts)
+```
+
+### Profile Details
+
+The LLM generates comprehensive profiles with:
+
+- **200-word bio** (public-facing description)
+- **2000-word persona** (internal behavior guide) including:
+  - Basic demographics (age, gender, location, profession)
+  - Background and relationship to the event
+  - Personality traits and MBTI type
+  - Social media behavior patterns (posting frequency, interaction style)
+  - Stances and attitudes on key topics
+  - Unique characteristics and speech patterns
+  - **Individual memory** of their role in the event
+
+**Platform-specific formats:**
+- **Twitter**: CSV format with columns `user_id,name,username,user_char,description`
+- **Reddit**: JSON format with user_id, username, persona, age, gender, MBTI, karma
+
+### Parallel Processing
+
+Profile generation is parallelized with a thread pool:
+
+```python
+with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    futures = {
+        executor.submit(generate_single_profile, idx, entity): (idx, entity)
+        for idx, entity in enumerate(entities)
+    }
+    
+    for future in concurrent.futures.as_completed(futures):
+        result_idx, profile, error = future.result()
+        profiles[result_idx] = profile
+        
+        # Real-time file writing
+        save_profiles_realtime()
+```
+
+**Performance:**
+- **5 parallel workers** generate profiles concurrently
+- **~10-20 seconds per profile** depending on LLM speed
+- **Realtime file updates** allow simulation to start before all profiles complete
+
+## Stage 3: Simulation
+
+<Info>
+  This stage runs the actual multi-agent simulation on Twitter and Reddit platforms using OASIS.
+</Info>
+
+### Dual-Platform Parallel Execution
+
+MiroFish runs both platforms simultaneously:
+
+```python
+# From simulation_runner.py
+if platform == "parallel":
+    script_name = "run_parallel_simulation.py"
+    state.twitter_running = True
+    state.reddit_running = True
+
+# Launch subprocess
+process = subprocess.Popen(
+    [sys.executable, script_path, "--config", config_path],
+    cwd=sim_dir,
+    stdout=log_file,
+    start_new_session=True  # New process group
+)
+```
+
+**Action logging structure:**
+```
+simulation_dir/
+├── twitter/
+│   └── actions.jsonl       # Twitter agent actions
+├── reddit/
+│   └── actions.jsonl       # Reddit agent actions
+├── simulation.log          # Main process log
+└── run_state.json          # Progress tracking
+```
+
+### Real-Time Monitoring
+
+A background thread monitors both action logs:
+
+```python
+def _monitor_simulation(simulation_id: str):
+    twitter_position = 0
+    reddit_position = 0
+    
+    while process.poll() is None:  # Process still running
+        # Read new lines from Twitter log
+        twitter_position = _read_action_log(
+            twitter_actions_log, twitter_position, state, "twitter"
+        )
+        
+        # Read new lines from Reddit log  
+        reddit_position = _read_action_log(
+            reddit_actions_log, reddit_position, state, "reddit"
+        )
+        
+        # Update run state
+        _save_run_state(state)
+        time.sleep(2)  # Poll every 2 seconds
+```
+
+### Action Tracking
+
+Each agent action is logged as JSON:
+
+```jsonl
+{"round": 5, "timestamp": "2024-03-13T10:30:00", "agent_id": 42, "agent_name": "Student Alice", "action_type": "CREATE_POST", "action_args": {"content": "This is unacceptable! We demand transparency."}, "success": true}
+{"round": 5, "timestamp": "2024-03-13T10:31:00", "agent_id": 15, "agent_name": "University Official", "action_type": "LIKE_POST", "action_args": {"post_content": "...", "post_author_name": "Student Alice"}, "success": true}
+```
+
+**Available actions:**
+- **Twitter**: CREATE_POST, LIKE_POST, REPOST, QUOTE_POST, FOLLOW, DO_NOTHING
+- **Reddit**: CREATE_POST, CREATE_COMMENT, LIKE_POST, DISLIKE_POST, LIKE_COMMENT, DISLIKE_COMMENT, SEARCH_POSTS, SEARCH_USER, FOLLOW, MUTE, TREND, REFRESH, DO_NOTHING
+
+### Time Simulation
+
+MiroFish simulates time passage with configurable granularity:
+
+```python
+# From simulation_config_generator.py
+class TimeSimulationConfig:
+    total_simulation_hours: int = 72        # Default: 3 days
+    minutes_per_round: int = 60             # Each round = 1 hour
+    
+    # Activity multipliers by time of day (China timezone)
+    peak_hours: List[int] = [19, 20, 21, 22]       # Evening peak: 1.5x
+    work_hours: List[int] = [9..18]                # Work hours: 0.7x
+    morning_hours: List[int] = [6, 7, 8]           # Morning: 0.4x
+    off_peak_hours: List[int] = [0..5]             # Night: 0.05x
+```
+
+**Timeline:**
+- Default simulation: **72 hours** (3 days)
+- Each round: **60 minutes** of simulated time
+- Total rounds: **72 rounds**
+- Agent activity varies by time of day (realistic diurnal patterns)
+
+### Memory Updates (Optional)
+
+If enabled, agent activities are sent back to Zep graph:
+
+```python
+# From zep_graph_memory_updater.py
+class ZepGraphMemoryUpdater:
+    BATCH_SIZE = 5  # Batch 5 activities per platform
+    
+    def add_activity(self, activity: AgentActivity):
+        # Queue activity
+        self._activity_queue.put(activity)
+        
+        # When batch size reached, send to Zep
+        if len(self._platform_buffers[platform]) >= self.BATCH_SIZE:
+            combined_text = "\n".join([
+                activity.to_episode_text() for activity in batch
+            ])
+            
+            self.client.graph.add(
+                graph_id=self.graph_id,
+                type="text",
+                data=combined_text
+            )
+```
+
+This creates **temporal evolution** of the graph with new facts like:
+- "Student Alice posted: 'This is unacceptable!'"
+- "University Official liked Student Alice's post"
+- "Media Outlet searched for 'student protest'"
+
+## Stage 4: Report Generation
+
+<Info>
+  The Report Agent uses ReACT (Reasoning + Acting) to generate comprehensive prediction reports.
+</Info>
+
+### Two-Phase Generation
+
+**Phase 1: Outline Planning**
+
+The agent first plans the report structure:
+
+```python
+# From report_agent.py
+def plan_outline(self) -> ReportOutline:
+    # Get simulation context
+    context = self.zep_tools.get_simulation_context(
+        graph_id=self.graph_id,
+        simulation_requirement=self.simulation_requirement
+    )
+    
+    # LLM generates 2-5 section outline
+    response = self.llm.chat_json(
+        messages=[
+            {"role": "system", "content": PLAN_SYSTEM_PROMPT},
+            {"role": "user", "content": format_context(context)}
+        ],
+        temperature=0.3
+    )
+    
+    return ReportOutline(
+        title=response["title"],
+        summary=response["summary"],
+        sections=[ReportSection(title=s["title"]) for s in response["sections"]]
+    )
+```
+
+**Phase 2: Section Generation with ReACT**
+
+Each section is generated using a ReACT loop:
+
+<Steps>
+  <Step title="Thought">
+    Agent thinks about what information is needed for this section.
+  </Step>
+  
+  <Step title="Action">
+    Agent calls a tool (insight_forge, panorama_search, quick_search, or interview_agents).
+    
+    ```xml
+    <tool_call>
+    {"name": "insight_forge", "parameters": {"query": "How did students react?"}}
+    </tool_call>
+    ```
+  </Step>
+  
+  <Step title="Observation">
+    System executes tool and injects results back to agent.
+    
+    ```python
+    observation_msg = f"""
+    Observation (Tool Result):
+    
+    === Tool {tool_name} returned ===
+    {result}
+    
+    Already called {tool_calls_count}/{max_tool_calls} tools.
+    - If sufficient info: Output "Final Answer:" + section content
+    - If need more info: Call another tool
+    """
+    ```
+  </Step>
+  
+  <Step title="Repeat or Answer">
+    Agent repeats Thought → Action → Observation up to 5 times per section, then outputs final content.
+  </Step>
+</Steps>
+
+### Available Tools
+
+The Report Agent has 4 powerful tools:
+
+<CardGroup cols={2}>
+  <Card title="insight_forge" icon="brain">
+    **Deep analytical search**
+    
+    Auto-decomposes query into sub-questions, retrieves multi-dimensional facts, and synthesizes insights.
+  </Card>
+  
+  <Card title="panorama_search" icon="globe">
+    **Breadth-first search**
+    
+    Gets complete timeline of event evolution, including expired/historical facts vs. current facts.
+  </Card>
+  
+  <Card title="quick_search" icon="search">
+    **Fast fact lookup**
+    
+    Semantic search for specific information validation.
+  </Card>
+  
+  <Card title="interview_agents" icon="microphone">
+    **Real agent interviews**
+    
+    Calls OASIS API to interview actual simulation agents, gets first-person perspectives from different roles.
+  </Card>
+</CardGroup>
+
+### Report Output
+
+Final report is generated as Markdown with:
+- **Title and executive summary**
+- **2-5 main sections** (no sub-sections)
+- **Rich quotations** from agent actions and interviews
+- **Evidence-based predictions** grounded in simulation results
+- **Bilingual support** (auto-translates English tool results to match report language)
+
+**Logging:**
+- `agent_log.jsonl`: Every tool call, LLM response, and thought process
+- `console_log.txt`: Human-readable progress log
+- `report.md`: Final Markdown report
+
+## Stage 5: Interaction
+
+<Info>
+  Users can interact with the simulated world and explore outcomes through chat interfaces.
+</Info>
+
+### Chat with Report Agent
+
+Ask follow-up questions about the report:
+
+```python
+# Report Agent in chat mode
+system_prompt = f"""
+You are a concise simulation assistant.
+
+Prediction scenario: {simulation_requirement}
+
+Generated report:
+{report_content}
+
+Rules:
+1. Prioritize answering from the report
+2. Only call tools if report lacks information (max 1-2 calls)
+3. Be concise and direct
+"""
+
+# User asks question
+user_msg = "What was the most surprising outcome?"
+
+# Agent responds with tool use if needed
+response = agent.chat(user_msg)
+```
+
+### Interview Individual Agents
+
+Direct interviews with specific agents from the simulation:
+
+```python
+# From zep_tools.py - interview_agents
+result = self.zep_tools.interview_agents(
+    simulation_id=simulation_id,
+    interview_requirement="Ask students about their concerns",
+    max_agents=5
+)
+
+# Calls OASIS API for each platform
+response = requests.post(
+    f"http://localhost:5001/api/simulation/{simulation_id}/interview/batch",
+    json={
+        "platform": "twitter",
+        "interviews": [
+            {"agent_id": 42, "question": "What are your main concerns?"}
+        ]
+    }
+)
+```
+
+## Performance Considerations
+
+<Warning>
+  Simulation is LLM-intensive. A 72-hour simulation with 100 agents can make 10,000+ LLM calls.
+</Warning>
+
+**Resource usage:**
+- **Graph construction**: ~2-5 minutes for 10K words
+- **Profile generation**: ~10-30 minutes for 100 agents (parallel)
+- **Simulation**: ~30-120 minutes depending on rounds and agent count
+- **Report generation**: ~5-15 minutes for 3-5 sections
+
+**Optimization tips:**
+- Use smaller `max_rounds` for testing (e.g., 10 rounds = 10 hours simulated)
+- Reduce agent count by filtering low-importance entities
+- Use faster LLM models (Qwen-Plus recommended over GPT-4)
+- Enable parallel platform simulation for comprehensive social media coverage
+
+**Cost estimates** (using Qwen-Plus):
+- Graph construction: $0.50-2.00
+- Profile generation (100 agents): $5-15
+- Simulation (72 rounds, 100 agents): $50-150
+- Report generation: $2-5
+- **Total for full run**: $60-175

@@ -1,0 +1,541 @@
+---
+title: Configuration Reference
+description: Complete guide to all MiroFish environment variables and configuration options
+---
+
+MiroFish is configured through environment variables stored in a `.env` file at the project root. This guide covers all available configuration options.
+
+## Configuration File Location
+
+The configuration file must be located at:
+
+```
+MiroFish/
+└── .env  # Project root
+```
+
+<Info>
+The backend automatically loads the `.env` file from the project root directory, regardless of where you run the application.
+</Info>
+
+## Quick Setup
+
+Create your configuration file from the example:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with your preferred text editor to add your API keys.
+
+## Required Configuration
+
+These environment variables are **required** for MiroFish to function:
+
+### LLM API Configuration
+
+<Card title="Language Model API" icon="brain">
+  MiroFish supports any LLM API that follows the OpenAI SDK format.
+  
+  ```env
+  LLM_API_KEY=your_api_key_here
+  LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+  LLM_MODEL_NAME=qwen-plus
+  ```
+  
+  **Parameters:**
+  
+  - `LLM_API_KEY` - Your API key for the LLM service
+  - `LLM_BASE_URL` - Base URL for the API endpoint
+  - `LLM_MODEL_NAME` - Model identifier to use
+  
+  <Tip>
+  **Recommended Provider:** Alibaba Qwen-plus via Bailian Platform
+  - Registration: https://bailian.console.aliyun.com/
+  - Cost-effective and high-quality
+  - Compatible with OpenAI SDK format
+  </Tip>
+</Card>
+
+### Alternative LLM Providers
+
+<Tabs>
+  <Tab title="Alibaba Qwen (Recommended)">
+    ```env
+    LLM_API_KEY=sk-your-bailian-api-key
+    LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+    LLM_MODEL_NAME=qwen-plus
+    ```
+    
+    **Available Models:**
+    - `qwen-plus` - Balanced performance and cost
+    - `qwen-turbo` - Faster, lower cost
+    - `qwen-max` - Highest quality
+  </Tab>
+  
+  <Tab title="OpenAI">
+    ```env
+    LLM_API_KEY=sk-your-openai-api-key
+    LLM_BASE_URL=https://api.openai.com/v1
+    LLM_MODEL_NAME=gpt-4o-mini
+    ```
+    
+    **Available Models:**
+    - `gpt-4o` - Latest GPT-4 Omni
+    - `gpt-4o-mini` - Cost-effective GPT-4
+    - `gpt-4-turbo` - Fast GPT-4
+  </Tab>
+  
+  <Tab title="Custom Provider">
+    ```env
+    LLM_API_KEY=your-api-key
+    LLM_BASE_URL=https://your-api-endpoint.com/v1
+    LLM_MODEL_NAME=your-model-name
+    ```
+    
+    Any API compatible with OpenAI's format works:
+    - Azure OpenAI
+    - Custom OpenAI-compatible endpoints
+    - Local models via vLLM or similar
+  </Tab>
+</Tabs>
+
+<Warning>
+**Cost Warning:** Simulations can consume significant API tokens.
+
+- Start with **fewer than 40 rounds** to estimate costs
+- Monitor your API usage dashboard
+- Consider using faster/cheaper models for testing
+</Warning>
+
+### Zep Cloud Configuration
+
+<Card title="Memory Management" icon="database">
+  Zep Cloud provides agent memory and knowledge graph capabilities.
+  
+  ```env
+  ZEP_API_KEY=your_zep_api_key_here
+  ```
+  
+  **Parameters:**
+  
+  - `ZEP_API_KEY` - Your Zep Cloud API key
+  
+  **Getting Your API Key:**
+  
+  1. Sign up at https://app.getzep.com/
+  2. Navigate to API Keys in the dashboard
+  3. Create a new API key
+  4. Copy the key to your `.env` file
+  
+  <Info>
+  **Free Tier:** Zep's monthly free quota is sufficient for basic MiroFish usage. No credit card required to start.
+  </Info>
+</Card>
+
+## Optional Configuration
+
+These variables are optional and have sensible defaults:
+
+### Accelerated LLM Configuration
+
+<Card title="Boost LLM (Optional)" icon="rocket">
+  Use a faster/cheaper model for specific operations to reduce costs.
+  
+  ```env
+  LLM_BOOST_API_KEY=your_api_key_here
+  LLM_BOOST_BASE_URL=your_base_url_here
+  LLM_BOOST_MODEL_NAME=your_model_name_here
+  ```
+  
+  **Parameters:**
+  
+  - `LLM_BOOST_API_KEY` - API key for the boost LLM
+  - `LLM_BOOST_BASE_URL` - Base URL for the boost API
+  - `LLM_BOOST_MODEL_NAME` - Boost model identifier
+  
+  <Warning>
+  If you don't use boost configuration, **remove these variables entirely** from your `.env` file. Don't leave them as empty values.
+  </Warning>
+  
+  **Example Use Case:**
+  ```env
+  # Primary LLM: High-quality model for agents
+  LLM_MODEL_NAME=qwen-plus
+  
+  # Boost LLM: Fast model for simple tasks
+  LLM_BOOST_MODEL_NAME=qwen-turbo
+  ```
+</Card>
+
+### Flask Configuration
+
+<Card title="Backend Server Settings" icon="server">
+  Configure the Flask backend server behavior.
+  
+  ```env
+  SECRET_KEY=mirofish-secret-key
+  FLASK_DEBUG=True
+  ```
+  
+  **Parameters:**
+  
+  - `SECRET_KEY` - Flask secret key for session management
+    - Default: `mirofish-secret-key`
+    - **Production:** Change to a random string
+  
+  - `FLASK_DEBUG` - Enable debug mode
+    - Default: `True`
+    - **Production:** Set to `False`
+  
+  <Warning>
+  In production, always:
+  1. Set `SECRET_KEY` to a strong random value
+  2. Set `FLASK_DEBUG=False`
+  3. Never expose debug endpoints publicly
+  </Warning>
+</Card>
+
+### OASIS Simulation Configuration
+
+<Card title="Simulation Parameters" icon="gears">
+  Control the behavior of the OASIS simulation engine.
+  
+  ```env
+  OASIS_DEFAULT_MAX_ROUNDS=10
+  ```
+  
+  **Parameters:**
+  
+  - `OASIS_DEFAULT_MAX_ROUNDS` - Default number of simulation rounds
+    - Default: `10`
+    - Range: 1-1000
+    - Higher values = longer simulations, more API costs
+  
+  <Info>
+  Users can override this value in the web interface when creating simulations.
+  </Info>
+</Card>
+
+### Report Agent Configuration
+
+<Card title="Report Generation Settings" icon="file-alt">
+  Fine-tune the ReportAgent behavior for generating analysis reports.
+  
+  ```env
+  REPORT_AGENT_MAX_TOOL_CALLS=5
+  REPORT_AGENT_MAX_REFLECTION_ROUNDS=2
+  REPORT_AGENT_TEMPERATURE=0.5
+  ```
+  
+  **Parameters:**
+  
+  - `REPORT_AGENT_MAX_TOOL_CALLS` - Maximum tool calls per report
+    - Default: `5`
+    - Higher = more thorough analysis, more API costs
+  
+  - `REPORT_AGENT_MAX_REFLECTION_ROUNDS` - Self-reflection iterations
+    - Default: `2`
+    - Higher = better quality, slower generation
+  
+  - `REPORT_AGENT_TEMPERATURE` - LLM temperature for report generation
+    - Default: `0.5`
+    - Range: 0.0 (deterministic) to 1.0 (creative)
+    - Lower = more focused, higher = more creative
+</Card>
+
+## Configuration Examples
+
+### Development Environment
+
+```env .env.development
+# LLM - Using cheaper model for testing
+LLM_API_KEY=sk-your-api-key
+LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_MODEL_NAME=qwen-turbo
+
+# Zep Cloud
+ZEP_API_KEY=z_your_zep_key
+
+# Flask - Debug enabled
+FLASK_DEBUG=True
+SECRET_KEY=dev-secret-key
+
+# OASIS - Short simulations for testing
+OASIS_DEFAULT_MAX_ROUNDS=5
+
+# Report Agent - Faster generation
+REPORT_AGENT_MAX_TOOL_CALLS=3
+REPORT_AGENT_MAX_REFLECTION_ROUNDS=1
+REPORT_AGENT_TEMPERATURE=0.7
+```
+
+### Production Environment
+
+```env .env.production
+# LLM - High-quality model
+LLM_API_KEY=sk-your-production-api-key
+LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_MODEL_NAME=qwen-plus
+
+# Zep Cloud
+ZEP_API_KEY=z_your_production_zep_key
+
+# Flask - Debug disabled, secure secret
+FLASK_DEBUG=False
+SECRET_KEY=your-very-secure-random-secret-key-here
+
+# OASIS - Standard simulation length
+OASIS_DEFAULT_MAX_ROUNDS=20
+
+# Report Agent - Thorough analysis
+REPORT_AGENT_MAX_TOOL_CALLS=5
+REPORT_AGENT_MAX_REFLECTION_ROUNDS=2
+REPORT_AGENT_TEMPERATURE=0.5
+```
+
+### Cost-Optimized Setup
+
+```env .env.cost-optimized
+# LLM - Use turbo model for cost savings
+LLM_API_KEY=sk-your-api-key
+LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_MODEL_NAME=qwen-turbo
+
+# Boost LLM - Even cheaper for simple tasks
+LLM_BOOST_API_KEY=sk-your-api-key
+LLM_BOOST_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_BOOST_MODEL_NAME=qwen-turbo
+
+# Zep Cloud
+ZEP_API_KEY=z_your_zep_key
+
+# OASIS - Shorter simulations
+OASIS_DEFAULT_MAX_ROUNDS=10
+
+# Report Agent - Fewer tool calls
+REPORT_AGENT_MAX_TOOL_CALLS=3
+REPORT_AGENT_MAX_REFLECTION_ROUNDS=1
+```
+
+## Internal Configuration
+
+The following settings are hardcoded in `backend/app/config.py` and cannot be changed via `.env`:
+
+### File Upload Settings
+
+```python
+MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max file size
+UPLOAD_FOLDER = 'backend/uploads'
+ALLOWED_EXTENSIONS = {'pdf', 'md', 'txt', 'markdown'}
+```
+
+### Text Processing
+
+```python
+DEFAULT_CHUNK_SIZE = 500  # Characters per chunk
+DEFAULT_CHUNK_OVERLAP = 50  # Overlap between chunks
+```
+
+### OASIS Platform Actions
+
+```python
+# Available actions on Twitter platform
+OASIS_TWITTER_ACTIONS = [
+    'CREATE_POST', 'LIKE_POST', 'REPOST', 
+    'FOLLOW', 'DO_NOTHING', 'QUOTE_POST'
+]
+
+# Available actions on Reddit platform
+OASIS_REDDIT_ACTIONS = [
+    'LIKE_POST', 'DISLIKE_POST', 'CREATE_POST', 
+    'CREATE_COMMENT', 'LIKE_COMMENT', 'DISLIKE_COMMENT',
+    'SEARCH_POSTS', 'SEARCH_USER', 'TREND', 'REFRESH',
+    'DO_NOTHING', 'FOLLOW', 'MUTE'
+]
+```
+
+<Note>
+To modify these internal settings, edit `backend/app/config.py` directly in your installation.
+</Note>
+
+## Configuration Validation
+
+MiroFish validates your configuration on startup. If required variables are missing, you'll see errors:
+
+```
+Configuration Errors:
+- LLM_API_KEY not configured
+- ZEP_API_KEY not configured
+```
+
+### Validate Configuration Manually
+
+Check your configuration is valid:
+
+```bash
+cd backend
+uv run python -c "from app.config import Config; errors = Config.validate(); print('Valid!' if not errors else f'Errors: {errors}')"
+```
+
+## Environment-Specific Configuration
+
+For different environments, create separate `.env` files:
+
+```
+MiroFish/
+├── .env.development
+├── .env.production
+└── .env.testing
+```
+
+Then symlink or copy the appropriate file:
+
+```bash
+# Development
+cp .env.development .env
+
+# Production
+cp .env.production .env
+```
+
+<Tip>
+Add environment-specific files to `.gitignore` to prevent committing sensitive data:
+
+```gitignore
+.env*
+!.env.example
+```
+</Tip>
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Protect API Keys" icon="key">
+    - Never commit `.env` files to Git
+    - Use different keys for dev/production
+    - Rotate keys regularly
+    - Store production keys in secure vaults
+  </Card>
+  
+  <Card title="Secure Flask" icon="shield">
+    - Use strong random `SECRET_KEY` in production
+    - Set `FLASK_DEBUG=False` in production
+    - Don't expose backend port publicly
+    - Use reverse proxy (nginx) for HTTPS
+  </Card>
+</CardGroup>
+
+## Performance Tuning
+
+### Optimize for Speed
+
+```env
+# Use faster models
+LLM_MODEL_NAME=qwen-turbo
+
+# Reduce simulation depth
+OASIS_DEFAULT_MAX_ROUNDS=10
+REPORT_AGENT_MAX_TOOL_CALLS=3
+REPORT_AGENT_MAX_REFLECTION_ROUNDS=1
+
+# Increase temperature for faster generation
+REPORT_AGENT_TEMPERATURE=0.8
+```
+
+### Optimize for Quality
+
+```env
+# Use best models
+LLM_MODEL_NAME=qwen-max
+
+# Increase simulation depth
+OASIS_DEFAULT_MAX_ROUNDS=50
+REPORT_AGENT_MAX_TOOL_CALLS=8
+REPORT_AGENT_MAX_REFLECTION_ROUNDS=3
+
+# Lower temperature for precision
+REPORT_AGENT_TEMPERATURE=0.3
+```
+
+### Balance Cost and Performance
+
+```env
+# Balanced model choice
+LLM_MODEL_NAME=qwen-plus
+
+# Moderate simulation depth
+OASIS_DEFAULT_MAX_ROUNDS=20
+REPORT_AGENT_MAX_TOOL_CALLS=5
+REPORT_AGENT_MAX_REFLECTION_ROUNDS=2
+
+# Balanced temperature
+REPORT_AGENT_TEMPERATURE=0.5
+```
+
+## Troubleshooting Configuration
+
+### Missing Required Variables
+
+<Tip>
+**Error:** `LLM_API_KEY not configured`
+
+**Solution:**
+1. Check `.env` file exists in project root
+2. Verify variable names match exactly (case-sensitive)
+3. Ensure no extra spaces: `LLM_API_KEY=value` not `LLM_API_KEY = value`
+4. Restart backend after updating `.env`
+</Tip>
+
+### Invalid API Keys
+
+<Tip>
+**Error:** `Authentication failed` or `401 Unauthorized`
+
+**Solution:**
+1. Verify API key is correct (no extra spaces)
+2. Check key hasn't expired
+3. Ensure base URL matches your provider
+4. Test API key with curl:
+   ```bash
+   curl -H "Authorization: Bearer YOUR_API_KEY" YOUR_BASE_URL/models
+   ```
+</Tip>
+
+### Configuration Not Loading
+
+<Tip>
+**Issue:** Changes to `.env` not taking effect
+
+**Solution:**
+1. Restart both frontend and backend:
+   ```bash
+   # Stop services (Ctrl+C)
+   npm run dev
+   ```
+2. For Docker, restart containers:
+   ```bash
+   docker compose restart
+   ```
+3. Check file is named exactly `.env` (not `.env.txt`)
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Source Installation" icon="code" href="/deployment/source-installation">
+    Install MiroFish from source with your configuration.
+  </Card>
+  
+  <Card title="Docker Deployment" icon="docker" href="/deployment/docker">
+    Deploy MiroFish in containers with your configuration.
+  </Card>
+  
+  <Card title="Create Simulation" icon="play" href="/guide/running-simulation">
+    Start using MiroFish with your configured setup.
+  </Card>
+  
+  <Card title="Requirements" icon="list" href="/deployment/requirements">
+    Review system requirements and prerequisites.
+  </Card>
+</CardGroup>

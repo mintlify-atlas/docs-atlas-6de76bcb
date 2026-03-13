@@ -1,0 +1,335 @@
+---
+title: Graph Construction
+description: Build a knowledge graph from your documents to power the simulation
+---
+
+## Overview
+
+The knowledge graph is the foundation of your MiroFish simulation. It extracts entities (people, organizations, events) and relationships from your seed materials, creating a structured representation that agents can reference during the simulation.
+
+## How It Works
+
+<Steps>
+  <Step title="Ontology Application">
+    MiroFish applies the automatically generated ontology (entity types and relationship types) to your documents.
+  </Step>
+  
+  <Step title="Text Chunking">
+    Your documents are split into manageable chunks for processing:
+    - Default chunk size: 500 characters
+    - Overlap: 50 characters (preserves context across boundaries)
+  </Step>
+  
+  <Step title="Entity Extraction">
+    The system uses LLM-powered extraction to identify entities matching your ontology types from each chunk.
+  </Step>
+  
+  <Step title="Relationship Mapping">
+    Connections between entities are discovered and classified according to your edge types.
+  </Step>
+  
+  <Step title="Graph Assembly">
+    All extracted information is assembled into a unified knowledge graph stored in Zep.
+  </Step>
+</Steps>
+
+## Starting Graph Construction
+
+### API Request
+
+```bash
+POST /api/graph/build
+Content-Type: application/json
+
+{
+  "project_id": "proj_a1b2c3d4",
+  "graph_name": "My Simulation Graph",
+  "chunk_size": 500,
+  "chunk_overlap": 50
+}
+```
+
+### Parameters
+
+<ParamField path="project_id" type="string" required>
+  The project ID returned from the ontology generation step
+</ParamField>
+
+<ParamField path="graph_name" type="string">
+  Custom name for your graph (defaults to project name)
+</ParamField>
+
+<ParamField path="chunk_size" type="integer" default="500">
+  Number of characters per text chunk. Smaller chunks = more precise extraction but slower processing.
+</ParamField>
+
+<ParamField path="chunk_overlap" type="integer" default="50">
+  Character overlap between chunks to maintain context
+</ParamField>
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "project_id": "proj_a1b2c3d4",
+    "task_id": "task_x1y2z3",
+    "message": "Graph construction task started"
+  }
+}
+```
+
+<Info>
+Graph construction runs asynchronously. Use the `task_id` to monitor progress.
+</Info>
+
+## Monitoring Progress
+
+### Check Task Status
+
+```bash
+GET /api/graph/task/{task_id}
+```
+
+**Response Example:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "task_id": "task_x1y2z3",
+    "status": "processing",
+    "progress": 65,
+    "message": "Processing chunk 45/70...",
+    "created_at": "2026-03-13T10:30:00",
+    "updated_at": "2026-03-13T10:35:22"
+  }
+}
+```
+
+### Progress Stages
+
+<Steps>
+  <Step title="Initialization (0-15%)">
+    Creating graph structure and setting ontology
+  </Step>
+  <Step title="Text Chunking (15-20%)">
+    Splitting documents into processable segments
+  </Step>
+  <Step title="Batch Processing (20-55%)">
+    Sending text chunks to Zep for entity extraction
+  </Step>
+  <Step title="Processing Wait (55-90%)">
+    Waiting for Zep to complete graph analysis
+  </Step>
+  <Step title="Finalization (90-100%)">
+    Retrieving graph statistics and saving results
+  </Step>
+</Steps>
+
+## Understanding the Results
+
+### Graph Data Structure
+
+Once complete, your graph contains:
+
+**Nodes (Entities)**
+```json
+{
+  "uuid": "node_abc123",
+  "name": "Dr. Jane Smith",
+  "labels": ["Professor", "Entity"],
+  "summary": "Computer science professor at State University",
+  "attributes": {
+    "department": "Computer Science",
+    "expertise": "AI and Machine Learning"
+  },
+  "created_at": "2026-03-13T10:32:15"
+}
+```
+
+**Edges (Relationships)**
+```json
+{
+  "uuid": "edge_def456",
+  "name": "WORKS_AT",
+  "fact": "Dr. Jane Smith works at State University",
+  "source_node_uuid": "node_abc123",
+  "target_node_uuid": "node_ghi789",
+  "source_node_name": "Dr. Jane Smith",
+  "target_node_name": "State University",
+  "attributes": {
+    "role": "Professor",
+    "since": "2018"
+  }
+}
+```
+
+### Retrieving Graph Data
+
+```bash
+GET /api/graph/data/{graph_id}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "graph_id": "mirofish_a1b2c3d4e5f6",
+    "nodes": [...],
+    "edges": [...],
+    "node_count": 127,
+    "edge_count": 284
+  }
+}
+```
+
+## Visualizing the Graph
+
+<Note>
+The frontend typically provides an interactive graph visualization showing:
+- **Nodes** sized by importance (number of connections)
+- **Edges** colored by relationship type
+- **Clusters** of related entities
+</Note>
+
+### Entity Type Distribution
+
+Review which entity types were most prevalent:
+
+```json
+{
+  "entity_types": [
+    {"type": "Student", "count": 45},
+    {"type": "Professor", "count": 12},
+    {"type": "University", "count": 3},
+    {"type": "Organization", "count": 8},
+    {"type": "Person", "count": 59}
+  ]
+}
+```
+
+## Filtering Entities
+
+Before creating your simulation, you can filter which entity types to include:
+
+```bash
+GET /api/simulation/entities/{graph_id}?entity_types=Student,Professor
+```
+
+This returns only entities matching specified types, which will become agents in your simulation.
+
+## Troubleshooting
+
+### Task Failed
+
+<Warning>
+If graph construction fails, check the error message in the task status response.
+</Warning>
+
+**Common Issues:**
+
+<AccordionGroup>
+  <Accordion title="Configuration Error: ZEP_API_KEY not configured">
+    Ensure your Zep API key is properly set in the backend configuration file.
+  </Accordion>
+  
+  <Accordion title="No ontology found">
+    The project may not have completed the ontology generation step. Check project status.
+  </Accordion>
+  
+  <Accordion title="Processing timeout">
+    Large documents may exceed processing limits. Try:
+    - Reducing document size
+    - Increasing chunk size (processes faster but less granular)
+    - Splitting into multiple smaller projects
+  </Accordion>
+</AccordionGroup>
+
+### Low Entity Count
+
+If the graph has fewer entities than expected:
+
+1. **Check ontology specificity**: Very specific entity types may miss broader matches
+2. **Review document quality**: Ensure seed materials contain clear entity references
+3. **Adjust chunk size**: Smaller chunks may capture more entities but take longer
+
+### Rebuilding the Graph
+
+To rebuild with different parameters:
+
+```bash
+POST /api/graph/build
+{
+  "project_id": "proj_a1b2c3d4",
+  "force": true,
+  "chunk_size": 300
+}
+```
+
+<Tip>
+Set `force: true` to rebuild even if a graph already exists for this project.
+</Tip>
+
+## Performance Optimization
+
+### Chunk Size Guidelines
+
+<CardGroup cols={2}>
+  <Card title="Smaller Chunks (300-400)" icon="microscope">
+    **Pros**: More precise extraction, captures fine details
+    
+    **Cons**: Slower processing, higher API costs
+    
+    **Best for**: Technical documents, detailed reports
+  </Card>
+  
+  <Card title="Larger Chunks (600-800)" icon="gauge-high">
+    **Pros**: Faster processing, better context
+    
+    **Cons**: May miss some entities, less granular
+    
+    **Best for**: News articles, general narratives
+  </Card>
+</CardGroup>
+
+### Batch Size
+
+The system processes chunks in batches of 3 by default. This balances:
+- API rate limits
+- Processing speed
+- System resource usage
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Set Up Environment" href="/guide/environment-setup" icon="sliders">
+    Configure simulation parameters and agent profiles
+  </Card>
+  <Card title="View Entities" icon="users">
+    Review extracted entities that will become simulation agents
+  </Card>
+</CardGroup>
+
+## Advanced: Graph Management
+
+### Resetting a Project
+
+```bash
+POST /api/graph/project/{project_id}/reset
+```
+
+Resets the project to ontology-generated state, allowing graph reconstruction with new parameters.
+
+### Deleting a Graph
+
+```bash
+DELETE /api/graph/delete/{graph_id}
+```
+
+<Warning>
+This permanently deletes the graph from Zep. Associated simulations will no longer be able to query graph data.
+</Warning>

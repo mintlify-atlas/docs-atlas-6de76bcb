@@ -1,0 +1,538 @@
+---
+title: Chat with Report Agent
+description: Interactive chat with AI Report Agent for simulation insights
+---
+
+## Chat with Report Agent
+
+<Note>
+  Chat with the AI Report Agent to ask questions about simulation results. The agent can autonomously search the knowledge graph and analyze simulation data to provide insights.
+</Note>
+
+```bash
+POST /api/report/chat
+```
+
+### Request Body (JSON)
+
+<ParamField body="simulation_id" type="string" required>
+  Simulation identifier
+</ParamField>
+
+<ParamField body="message" type="string" required>
+  Your question or message to the Report Agent
+</ParamField>
+
+<ParamField body="chat_history" type="array">
+  Previous conversation history for context (optional)
+  <Expandable title="Chat history format">
+    Array of message objects with `role` (`user` or `assistant`) and `content` (message text)
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Chat response">
+    <ResponseField name="response" type="string">
+      Agent's text response
+    </ResponseField>
+    <ResponseField name="tool_calls" type="array">
+      Tools the agent called to answer the question
+      <Expandable title="Tool call object">
+        <ResponseField name="tool_name" type="string">
+          Name of tool used
+        </ResponseField>
+        <ResponseField name="parameters" type="object">
+          Parameters passed to tool
+        </ResponseField>
+        <ResponseField name="result" type="object">
+          Tool execution result
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="sources" type="array">
+      Information sources used (graph facts, simulation logs, etc.)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:5001/api/report/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "simulation_id": "sim_xyz789",
+    "message": "What were the main concerns students expressed about the policy?"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'http://localhost:5001/api/report/chat',
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      simulation_id: 'sim_xyz789',
+      message: 'What were the main concerns students expressed?'
+    })
+  }
+);
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:5001/api/report/chat',
+    json={
+        'simulation_id': 'sim_xyz789',
+        'message': 'What were the main concerns students expressed?'
+    }
+)
+data = response.json()
+```
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "response": "Based on my analysis of the simulation, students expressed three main concerns about the attendance policy:\n\n1. **Research Flexibility** (mentioned by 68% of seniors): Students working on research projects, particularly in CS and engineering, were worried the mandatory attendance would conflict with lab work and project meetings.\n\n2. **Academic Freedom** (45% of all students): Many felt the policy undermines their autonomy and treats them like children rather than adults capable of managing their own education.\n\n3. **Part-time Work Impact** (32% of students): Students who work part-time to pay for tuition expressed concerns about scheduling conflicts, especially those with variable work hours.\n\nThe sentiment was particularly negative among seniors (78% negative) compared to freshmen (42% negative), suggesting the impact varies significantly by class year.",
+    "tool_calls": [
+      {
+        "tool_name": "search_graph",
+        "parameters": {
+          "query": "student concerns attendance policy",
+          "limit": 20
+        },
+        "result": {
+          "facts_found": 15,
+          "top_themes": ["research flexibility", "academic freedom", "work conflicts"]
+        }
+      },
+      {
+        "tool_name": "insight_forge",
+        "parameters": {
+          "analysis_type": "sentiment_by_entity_type"
+        },
+        "result": {
+          "seniors_sentiment": -0.78,
+          "freshmen_sentiment": -0.42
+        }
+      }
+    ],
+    "sources": [
+      "Knowledge graph: 15 relevant facts",
+      "Simulation logs: 142 posts analyzed",
+      "Agent profiles: 45 students"
+    ]
+  }
+}
+```
+
+## Conversation Flow
+
+Maintain context across multiple messages:
+
+<CodeGroup>
+```javascript Multi-turn Conversation
+const chatHistory = [];
+
+// First question
+let response = await fetch('http://localhost:5001/api/report/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    simulation_id: 'sim_xyz789',
+    message: 'What were the main concerns?',
+    chat_history: chatHistory
+  })
+});
+let data = await response.json();
+
+// Add to history
+chatHistory.push(
+  { role: 'user', content: 'What were the main concerns?' },
+  { role: 'assistant', content: data.data.response }
+);
+
+// Follow-up question
+response = await fetch('http://localhost:5001/api/report/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    simulation_id: 'sim_xyz789',
+    message: 'How did professors respond to these concerns?',
+    chat_history: chatHistory  // Include previous context
+  })
+});
+data = await response.json();
+```
+</CodeGroup>
+
+## Agent Capabilities
+
+### Autonomous Tool Usage
+
+The Report Agent automatically decides which tools to use:
+
+<ResponseField name="search_graph" type="tool">
+  Search the knowledge graph for relevant facts and relationships
+</ResponseField>
+
+<ResponseField name="insight_forge" type="tool">
+  Analyze simulation logs for patterns, sentiment, and statistics
+</ResponseField>
+
+<ResponseField name="agent_profiler" type="tool">
+  Get demographic breakdowns and agent type analysis
+</ResponseField>
+
+<ResponseField name="trend_analyzer" type="tool">
+  Identify temporal trends and evolution of topics
+</ResponseField>
+
+### Intelligent Analysis
+
+The agent can:
+- Answer questions without explicit data queries
+- Synthesize information from multiple sources
+- Provide statistical summaries
+- Identify patterns and trends
+- Compare different agent groups
+- Explain reasoning behind findings
+
+## Question Types
+
+### Sentiment Analysis
+
+<CodeGroup>
+```json Overall Sentiment
+{
+  "message": "What was the overall sentiment about the policy?"
+}
+```
+
+```json By Group
+{
+  "message": "How did student sentiment differ from professor sentiment?"
+}
+```
+
+```json Temporal
+{
+  "message": "Did sentiment change over the course of the simulation?"
+}
+```
+</CodeGroup>
+
+### Topic Analysis
+
+<CodeGroup>
+```json Popular Topics
+{
+  "message": "What topics were most discussed?"
+}
+```
+
+```json Topic Correlation
+{
+  "message": "What other topics did students who discussed academic freedom also talk about?"
+}
+```
+</CodeGroup>
+
+### Agent Behavior
+
+<CodeGroup>
+```json Influential Agents
+{
+  "message": "Which agents were most influential in the discussion?"
+}
+```
+
+```json Agent Groups
+{
+  "message": "How did seniors differ from freshmen in their responses?"
+}
+```
+</CodeGroup>
+
+### Comparative Analysis
+
+<CodeGroup>
+```json Platform Comparison
+{
+  "message": "Were discussions on Reddit different from Twitter?"
+}
+```
+
+```json Time Comparison
+{
+  "message": "How did the first 25 rounds compare to the last 25 rounds?"
+}
+```
+</CodeGroup>
+
+### Insights & Recommendations
+
+<CodeGroup>
+```json Key Insights
+{
+  "message": "What are the three most important insights from this simulation?"
+}
+```
+
+```json Recommendations
+{
+  "message": "Based on the simulation, what would you recommend to the administration?"
+}
+```
+
+```json Risk Assessment
+{
+  "message": "What risks should we be aware of if we implement this policy?"
+}
+```
+</CodeGroup>
+
+## Tool Call Transparency
+
+The `tool_calls` array shows what the agent did:
+
+```json
+{
+  "tool_calls": [
+    {
+      "tool_name": "search_graph",
+      "parameters": {
+        "query": "student opinions attendance",
+        "limit": 20
+      },
+      "result": {
+        "facts_found": 15,
+        "relevance_score": 0.89
+      }
+    },
+    {
+      "tool_name": "insight_forge",
+      "parameters": {
+        "analysis_type": "sentiment_breakdown",
+        "group_by": "entity_type"
+      },
+      "result": {
+        "Student": {"sentiment": -0.65, "count": 32},
+        "Professor": {"sentiment": 0.12, "count": 8}
+      }
+    }
+  ]
+}
+```
+
+This helps you understand:
+- What data sources were consulted
+- How the agent arrived at its answer
+- Whether additional context might be needed
+
+## Source Attribution
+
+The `sources` array lists information sources:
+
+```json
+{
+  "sources": [
+    "Knowledge graph: 15 relevant facts from 8 entities",
+    "Simulation logs: 142 posts and 356 comments analyzed",
+    "Agent profiles: 45 students, 8 professors",
+    "Temporal analysis: 100 rounds spanning 4 simulated days"
+  ]
+}
+```
+
+## Best Practices
+
+### Clear Questions
+
+<Warning>
+  Ask specific, focused questions for best results.
+</Warning>
+
+<CodeGroup>
+```text Good Examples
+"What percentage of students expressed concerns about research flexibility?"
+"How did sentiment evolve from round 1 to round 100?"
+"Which specific aspects of the policy received the most negative feedback?"
+```
+
+```text Poor Examples
+"Tell me about everything"
+"What happened?"
+"Summary"
+```
+</CodeGroup>
+
+### Follow-up Questions
+
+Use chat history for deeper exploration:
+
+```javascript
+// Initial question
+Q1: "What were the main concerns?"
+A1: "Students expressed concerns about research flexibility, academic freedom, and work conflicts."
+
+// Follow-up with context
+Q2: "Can you elaborate on the research flexibility concern? Which types of research were affected?"
+A2: "Based on the knowledge graph, CS and engineering students working on lab projects..."
+
+// Deep dive
+Q3: "What specific solutions did these students propose?"
+```
+
+### Verify with Data
+
+For critical decisions, verify agent responses:
+
+```javascript
+// Get agent's answer
+const chatResponse = await fetch('/api/report/chat', {...});
+const answer = chatResponse.data.response;
+
+// Verify by checking tool results
+const toolCalls = chatResponse.data.tool_calls;
+const graphSearch = toolCalls.find(t => t.tool_name === 'search_graph');
+console.log('Agent found', graphSearch.result.facts_found, 'supporting facts');
+```
+
+## Error Responses
+
+<CodeGroup>
+```json Missing Parameters
+{
+  "success": false,
+  "error": "请提供 simulation_id 和 message"
+}
+```
+
+```json Simulation Not Found
+{
+  "success": false,
+  "error": "模拟不存在: sim_invalid"
+}
+```
+
+```json Missing Graph
+{
+  "success": false,
+  "error": "缺少图谱ID"
+}
+```
+
+```json Chat Error
+{
+  "success": false,
+  "error": "Chat failed: LLM API rate limit exceeded",
+  "traceback": "..."
+}
+```
+</CodeGroup>
+
+## Chat vs Interview
+
+### Report Chat (This Endpoint)
+
+- Talk to **Report Agent** (AI analyst)
+- Get **analytical insights** about the simulation
+- Uses **knowledge graph + simulation logs**
+- Answers **about the data** (third-person)
+- Can make comparisons and find patterns
+
+### Agent Interview (`/api/simulation/interview`)
+
+- Talk to **individual agents**
+- Get **personal perspectives**
+- Uses **agent memory + personality**
+- Answers **as the agent** (first-person)
+- Expresses opinions and experiences
+
+### When to Use Each
+
+<CardGroup cols={2}>
+  <Card title="Use Report Chat For">
+    - Aggregate analysis
+    - Statistical questions
+    - Trend identification
+    - Comparisons across groups
+    - Strategic insights
+  </Card>
+  
+  <Card title="Use Interview For">
+    - Individual perspectives
+    - Personal experiences
+    - Qualitative depth
+    - Specific agent reasoning
+    - Sentiment validation
+  </Card>
+</CardGroup>
+
+## Performance
+
+<Note>
+  Chat responses typically take 3-8 seconds depending on query complexity and number of tool calls.
+</Note>
+
+### Response Time Factors
+
+- **Simple questions:** 2-4 seconds (no tool calls needed)
+- **Graph searches:** +2-3 seconds per search
+- **Complex analysis:** 5-10 seconds (multiple tools)
+- **Follow-up questions:** Faster with chat history
+
+## Advanced Usage
+
+### Structured Queries
+
+Request specific formats:
+
+```json
+{
+  "message": "List the top 5 concerns in bullet points with percentages"
+}
+```
+
+### Comparative Analysis
+
+```json
+{
+  "message": "Create a comparison table of sentiment between students, professors, and administrators"
+}
+```
+
+### Explanation Requests
+
+```json
+{
+  "message": "Explain the methodology you used to calculate sentiment scores"
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Interview Agents" icon="comments" href="/api/simulation/interview">
+    Get individual agent perspectives
+  </Card>
+  <Card title="Generate Report" icon="file-alt" href="/api/report/generate">
+    Create comprehensive written reports
+  </Card>
+</CardGroup>

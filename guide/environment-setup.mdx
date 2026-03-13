@@ -1,0 +1,418 @@
+---
+title: Environment Setup
+description: Prepare the simulation environment with agent profiles and configuration
+---
+
+## Overview
+
+Before running your simulation, MiroFish generates detailed agent profiles and intelligent configuration parameters. This automated process transforms knowledge graph entities into social media agents with realistic behaviors, preferences, and activity patterns.
+
+## Create a Simulation
+
+First, create a simulation instance linked to your project:
+
+```bash
+POST /api/simulation/create
+Content-Type: application/json
+
+{
+  "project_id": "proj_a1b2c3d4",
+  "graph_id": "mirofish_x1y2z3",
+  "enable_twitter": true,
+  "enable_reddit": true
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_m1n2o3p4",
+    "project_id": "proj_a1b2c3d4",
+    "graph_id": "mirofish_x1y2z3",
+    "status": "created",
+    "enable_twitter": true,
+    "enable_reddit": true,
+    "created_at": "2026-03-13T11:00:00"
+  }
+}
+```
+
+<Info>
+The `simulation_id` will be used for all subsequent preparation and execution steps.
+</Info>
+
+## Environment Preparation
+
+The preparation step is an automated, intelligent process that:
+
+<CardGroup cols={2}>
+  <Card title="Entity Reading" icon="users">
+    Reads and filters entities from the knowledge graph
+  </Card>
+  <Card title="Profile Generation" icon="id-card">
+    Creates detailed social media personas for each entity
+  </Card>
+  <Card title="Config Generation" icon="gear">
+    Intelligently determines simulation parameters using LLM
+  </Card>
+  <Card title="Script Preparation" icon="file-code">
+    Sets up execution scripts for the simulation
+  </Card>
+</CardGroup>
+
+### Starting Preparation
+
+```bash
+POST /api/simulation/prepare
+Content-Type: application/json
+
+{
+  "simulation_id": "sim_m1n2o3p4",
+  "entity_types": ["Student", "Professor"],
+  "use_llm_for_profiles": true,
+  "parallel_profile_count": 5
+}
+```
+
+### Parameters
+
+<ParamField path="simulation_id" type="string" required>
+  The simulation ID from the creation step
+</ParamField>
+
+<ParamField path="entity_types" type="array">
+  Filter specific entity types to include as agents. Omit to include all types.
+</ParamField>
+
+<ParamField path="use_llm_for_profiles" type="boolean" default="true">
+  Use LLM to generate rich, detailed agent personas (recommended)
+</ParamField>
+
+<ParamField path="parallel_profile_count" type="integer" default="5">
+  Number of profiles to generate in parallel (affects speed)
+</ParamField>
+
+<ParamField path="force_regenerate" type="boolean" default="false">
+  Force regeneration even if preparation already completed
+</ParamField>
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_m1n2o3p4",
+    "task_id": "task_q5r6s7t8",
+    "status": "preparing",
+    "message": "Preparation task started",
+    "expected_entities_count": 68,
+    "entity_types": ["Student", "Professor", "Person"]
+  }
+}
+```
+
+## Monitoring Preparation Progress
+
+Preparation is a multi-stage process that can take several minutes:
+
+```bash
+POST /api/simulation/prepare/status
+Content-Type: application/json
+
+{
+  "task_id": "task_q5r6s7t8",
+  "simulation_id": "sim_m1n2o3p4"
+}
+```
+
+### Progress Stages
+
+<Steps>
+  <Step title="Reading Entities (0-20%)">
+    Fetching entities from the knowledge graph and applying filters
+    
+    ```json
+    {
+      "message": "[1/4] Reading entities: 45/68 loaded",
+      "progress": 12
+    }
+    ```
+  </Step>
+  
+  <Step title="Generating Profiles (20-70%)">
+    Creating detailed agent personas using LLM. This is the longest stage.
+    
+    ```json
+    {
+      "message": "[2/4] Generating profiles: 23/68 - Dr. Sarah Chen",
+      "progress": 45,
+      "progress_detail": {
+        "current_item": 23,
+        "total_items": 68
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Generating Config (70-90%)">
+    LLM intelligently determines simulation parameters
+    
+    ```json
+    {
+      "message": "[3/4] Generating simulation config",
+      "progress": 80
+    }
+    ```
+  </Step>
+  
+  <Step title="Finalizing (90-100%)">
+    Saving configuration files and updating status
+  </Step>
+</Steps>
+
+## Understanding Agent Profiles
+
+Each entity becomes an agent with a rich social media persona:
+
+### Profile Structure
+
+```json
+{
+  "user_id": 1,
+  "username": "sarah_chen_prof",
+  "name": "Dr. Sarah Chen",
+  "bio": "Computer Science Professor at State University. Passionate about AI ethics and education.",
+  "persona": "I am a tenured professor who values academic integrity and student welfare. I tend to be thoughtful in my responses and often cite research. I'm concerned about the implications of AI in education but optimistic about its potential when used responsibly.",
+  "age": 42,
+  "gender": "female",
+  "mbti": "INTJ",
+  "profession": "University Professor",
+  "interested_topics": ["AI ethics", "Computer science education", "Research integrity"],
+  "karma": 2500,
+  "follower_count": 890,
+  "source_entity_uuid": "node_abc123",
+  "source_entity_type": "Professor"
+}
+```
+
+### Profile Generation Methods
+
+<CardGroup cols={2}>
+  <Card title="LLM-Enhanced (Recommended)" icon="sparkles">
+    Uses GPT to create detailed, contextual personas based on:
+    - Entity information from graph
+    - Related entities and relationships
+    - Document context
+    - Simulation requirements
+    
+    **Result**: Rich, realistic personalities with nuanced behaviors
+  </Card>
+  
+  <Card title="Template-Based" icon="table">
+    Generates basic profiles from entity attributes:
+    - Faster processing
+    - Lower API costs
+    - Less behavioral depth
+    
+    **Best for**: Quick tests or simple scenarios
+  </Card>
+</CardGroup>
+
+## Intelligent Configuration Generation
+
+MiroFish uses LLM to automatically determine optimal simulation parameters based on:
+
+- **Simulation requirements**: Your stated objectives
+- **Document content**: Context from seed materials  
+- **Entity characteristics**: Types and relationships of agents
+- **Real-world patterns**: Typical social media behaviors
+
+### Generated Configuration
+
+**Time Configuration:**
+```json
+{
+  "time_config": {
+    "total_simulation_hours": 72,
+    "minutes_per_round": 30,
+    "peak_hours": [19, 20, 21, 22],
+    "off_peak_hours": [0, 1, 2, 3, 4, 5],
+    "peak_activity_multiplier": 1.5
+  }
+}
+```
+
+**Agent Activity Config:**
+```json
+{
+  "agent_configs": [
+    {
+      "agent_id": 1,
+      "entity_name": "Dr. Sarah Chen",
+      "activity_level": 0.7,
+      "posts_per_hour": 0.5,
+      "comments_per_hour": 1.2,
+      "active_hours": [8, 9, 10, 11, 14, 15, 16, 19, 20],
+      "sentiment_bias": 0.1,
+      "stance": "cautiously_supportive",
+      "influence_weight": 1.8
+    }
+  ]
+}
+```
+
+**Event Configuration:**
+```json
+{
+  "event_config": {
+    "initial_posts": [
+      {
+        "author_id": 5,
+        "content": "Breaking: University announces new AI policy...",
+        "timestamp_hour": 0,
+        "platform": "twitter"
+      }
+    ],
+    "hot_topics": [
+      "AI in education",
+      "Academic integrity",
+      "Student privacy"
+    ]
+  }
+}
+```
+
+## Viewing Preparation Results
+
+### Check Profiles (Real-time)
+
+While generation is in progress:
+
+```bash
+GET /api/simulation/{simulation_id}/profiles/realtime?platform=reddit
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "count": 23,
+    "total_expected": 68,
+    "is_generating": true,
+    "profiles": [...]
+  }
+}
+```
+
+### View Final Configuration
+
+```bash
+GET /api/simulation/{simulation_id}/config
+```
+
+<Tip>
+Review the generated configuration to understand how the LLM interpreted your simulation requirements.
+</Tip>
+
+## Validating the Setup
+
+### Preparation Complete Check
+
+The system automatically validates:
+
+<Steps>
+  <Step title="File Existence">
+    - `simulation_config.json`
+    - `reddit_profiles.json`
+    - `twitter_profiles.csv`
+  </Step>
+  
+  <Step title="Status Verification">
+    - State is "ready"
+    - Config generated flag is true
+  </Step>
+  
+  <Step title="Data Integrity">
+    - All agents have valid profiles
+    - Configuration has required fields
+  </Step>
+</Steps>
+
+### Manual Verification
+
+**Check simulation status:**
+```bash
+GET /api/simulation/{simulation_id}
+```
+
+**Expected response when ready:**
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_m1n2o3p4",
+    "status": "ready",
+    "entities_count": 68,
+    "profiles_count": 68,
+    "config_generated": true,
+    "entity_types": ["Student", "Professor", "Person"]
+  }
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Profile generation is slow">
+    LLM-based profile generation processes 5 agents in parallel by default. For 68 agents, expect 5-10 minutes.
+    
+    **Speed up**: Increase `parallel_profile_count` (higher API costs) or use `use_llm_for_profiles: false`
+  </Accordion>
+  
+  <Accordion title="Configuration seems incorrect">
+    The LLM generates config based on simulation requirements. If results don't match expectations:
+    - Make requirements more specific
+    - Review agent profiles for context
+    - Manually edit `simulation_config.json` if needed
+  </Accordion>
+  
+  <Accordion title="Missing entities">
+    Check `entity_types` filter. Omitting this parameter includes all entity types from the graph.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Run Simulation" href="/guide/running-simulation" icon="play">
+    Execute your prepared simulation
+  </Card>
+  <Card title="Download Config" icon="download">
+    Review or customize the generated configuration files
+  </Card>
+</CardGroup>
+
+## Advanced Configuration
+
+### Manual Config Editing
+
+Download and edit configuration if needed:
+
+```bash
+GET /api/simulation/{simulation_id}/config/download
+```
+
+Modify parameters like:
+- Simulation duration
+- Agent activity levels
+- Initial events
+- Platform-specific settings
+
+<Warning>
+Manual edits should maintain the required JSON structure. Invalid configuration will cause simulation failures.
+</Warning>

@@ -1,0 +1,303 @@
+---
+title: Generate Ontology
+description: Upload documents and generate ontology definitions
+---
+
+## Generate Ontology
+
+<Note>
+  Upload documents (PDF/MD/TXT) and generate an ontology with entity types and relationships. This creates a new project.
+</Note>
+
+```bash
+POST /api/graph/ontology/generate
+```
+
+### Request Body (multipart/form-data)
+
+<ParamField body="files" type="file[]" required>
+  One or more document files (PDF, Markdown, or TXT format)
+</ParamField>
+
+<ParamField body="simulation_requirement" type="string" required>
+  Description of the simulation requirements and analysis goals
+</ParamField>
+
+<ParamField body="project_name" type="string" default="Unnamed Project">
+  Human-readable project name
+</ParamField>
+
+<ParamField body="additional_context" type="string">
+  Optional additional context or instructions for ontology generation
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Ontology generation result">
+    <ResponseField name="project_id" type="string">
+      Unique identifier for the created project
+    </ResponseField>
+    <ResponseField name="project_name" type="string">
+      Project name
+    </ResponseField>
+    <ResponseField name="ontology" type="object">
+      <Expandable title="Generated ontology">
+        <ResponseField name="entity_types" type="array">
+          Array of entity type definitions with name and description
+        </ResponseField>
+        <ResponseField name="edge_types" type="array">
+          Array of relationship type definitions
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="analysis_summary" type="string">
+      LLM-generated summary of document analysis
+    </ResponseField>
+    <ResponseField name="files" type="array">
+      List of uploaded files with filename and size
+    </ResponseField>
+    <ResponseField name="total_text_length" type="number">
+      Total characters extracted from all documents
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:5001/api/graph/ontology/generate \
+  -F "files=@university_policy.pdf" \
+  -F "files=@student_handbook.md" \
+  -F "simulation_requirement=Analyze student reactions to new campus policies" \
+  -F "project_name=Campus Policy Analysis" \
+  -F "additional_context=Focus on undergraduate students"
+```
+
+```javascript JavaScript (FormData)
+const formData = new FormData();
+formData.append('files', fileInput.files[0]);
+formData.append('simulation_requirement', 'Analyze sentiment');
+formData.append('project_name', 'My Project');
+
+const response = await fetch(
+  'http://localhost:5001/api/graph/ontology/generate',
+  {
+    method: 'POST',
+    body: formData
+  }
+);
+const data = await response.json();
+```
+
+```python Python (requests)
+import requests
+
+files = {
+    'files': (
+        'document.pdf', 
+        open('document.pdf', 'rb'), 
+        'application/pdf'
+    )
+}
+
+data = {
+    'simulation_requirement': 'Analyze sentiment',
+    'project_name': 'My Project'
+}
+
+response = requests.post(
+    'http://localhost:5001/api/graph/ontology/generate',
+    files=files,
+    data=data
+)
+```
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "project_id": "proj_a1b2c3d4e5f6",
+    "project_name": "Campus Policy Analysis",
+    "ontology": {
+      "entity_types": [
+        {
+          "name": "Student",
+          "description": "University students affected by policies"
+        },
+        {
+          "name": "Professor",
+          "description": "Faculty members involved in policy implementation"
+        },
+        {
+          "name": "Policy",
+          "description": "Campus policies and regulations"
+        },
+        {
+          "name": "StudentOrganization",
+          "description": "Student groups and clubs"
+        }
+      ],
+      "edge_types": [
+        {
+          "name": "AFFECTED_BY",
+          "description": "Student affected by policy"
+        },
+        {
+          "name": "MEMBER_OF",
+          "description": "Student is member of organization"
+        },
+        {
+          "name": "IMPLEMENTS",
+          "description": "Professor implements policy"
+        }
+      ]
+    },
+    "analysis_summary": "The documents describe new campus policies affecting student life, including housing regulations, academic integrity guidelines, and extracurricular activity rules. Key stakeholders include undergraduate students, faculty members, and student organizations.",
+    "files": [
+      {
+        "filename": "university_policy.pdf",
+        "size": 245680
+      },
+      {
+        "filename": "student_handbook.md",
+        "size": 89432
+      }
+    ],
+    "total_text_length": 52340
+  }
+}
+```
+
+## File Format Support
+
+### Supported Formats
+
+<CodeGroup>
+```text PDF
+.pdf - Adobe PDF documents
+Text extraction includes:
+- Body text
+- Tables
+- Headers and footers
+```
+
+```text Markdown
+.md, .markdown - Markdown documents
+Preserves:
+- Headings
+- Lists
+- Code blocks
+- Links
+```
+
+```text Plain Text
+.txt - Plain text files
+Direct text import with preprocessing
+```
+</CodeGroup>
+
+### File Size Limits
+
+<Note>
+  Maximum file size: 50 MB per file
+  Maximum total upload: 200 MB
+  Recommended: 1-10 documents per project
+</Note>
+
+## Ontology Generation Process
+
+The ontology generation uses LLM analysis to:
+
+1. **Extract Text:** Parse all uploaded documents
+2. **Analyze Content:** Use LLM to understand domain and concepts
+3. **Identify Entities:** Determine key entity types in the domain
+4. **Define Relationships:** Map relationships between entities
+5. **Generate Summary:** Create analysis summary
+
+## Error Responses
+
+<CodeGroup>
+```json Missing Required Field
+{
+  "success": false,
+  "error": "请提供模拟需求描述 (simulation_requirement)"
+}
+```
+
+```json No Files Uploaded
+{
+  "success": false,
+  "error": "请至少上传一个文档文件"
+}
+```
+
+```json Invalid File Format
+{
+  "success": false,
+  "error": "没有成功处理任何文档，请检查文件格式"
+}
+```
+
+```json Processing Error
+{
+  "success": false,
+  "error": "LLM processing failed: Connection timeout",
+  "traceback": "Traceback (most recent call last)..."
+}
+```
+</CodeGroup>
+
+## Best Practices
+
+### Document Quality
+
+<Warning>
+  Ensure documents are:
+  - Clear and well-formatted
+  - Relevant to your simulation topic
+  - Not password-protected or encrypted
+  - In English or Chinese (best LLM support)
+</Warning>
+
+### Simulation Requirements
+
+Write clear, specific simulation requirements:
+
+<CodeGroup>
+```text Good Example
+"Analyze how university students would react to a new policy requiring mandatory attendance in all classes. Focus on different student demographics: freshmen, seniors, international students, and student athletes."
+```
+
+```text Poor Example
+"Analyze students and policies."
+```
+</CodeGroup>
+
+### Multiple Documents
+
+When uploading multiple documents:
+- Ensure documents cover related topics
+- Include diverse perspectives when possible
+- Avoid duplicate or redundant content
+
+## Next Steps
+
+After generating an ontology:
+
+<CardGroup cols={2}>
+  <Card title="Build Knowledge Graph" icon="project-diagram" href="/api/graph/build">
+    Use your project_id to build a knowledge graph
+  </Card>
+  <Card title="View Project" icon="folder" href="/api/graph/projects">
+    Get project details and status
+  </Card>
+</CardGroup>

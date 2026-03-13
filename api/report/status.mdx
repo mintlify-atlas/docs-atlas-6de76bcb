@@ -1,0 +1,585 @@
+---
+title: Report Status
+description: Check report generation progress and retrieve reports
+---
+
+## Get Report Generation Status
+
+Check the status of a report generation task.
+
+```bash
+POST /api/report/generate/status
+```
+
+### Request Body (JSON)
+
+<ParamField body="task_id" type="string">
+  Task ID from the generate endpoint (for active tasks)
+</ParamField>
+
+<ParamField body="simulation_id" type="string">
+  Simulation ID to check if report is complete
+</ParamField>
+
+<Note>
+  Provide either `task_id` (for in-progress generation) or `simulation_id` (to check for completed reports).
+</Note>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Generation status">
+    <ResponseField name="task_id" type="string">
+      Task identifier (if querying active task)
+    </ResponseField>
+    <ResponseField name="simulation_id" type="string">
+      Simulation identifier
+    </ResponseField>
+    <ResponseField name="report_id" type="string">
+      Report identifier (when completed)
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Status: `processing`, `completed`, `failed`
+    </ResponseField>
+    <ResponseField name="progress" type="number">
+      Completion percentage (0-100)
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Current operation description
+    </ResponseField>
+    <ResponseField name="already_completed" type="boolean">
+      Whether report was already generated
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL - By Task ID
+curl -X POST http://localhost:5001/api/report/generate/status \
+  -H "Content-Type: application/json" \
+  -d '{"task_id": "task_report456"}'
+```
+
+```bash cURL - By Simulation ID
+curl -X POST http://localhost:5001/api/report/generate/status \
+  -H "Content-Type: application/json" \
+  -d '{"simulation_id": "sim_xyz789"}'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'http://localhost:5001/api/report/generate/status',
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      task_id: 'task_report456'
+    })
+  }
+);
+const data = await response.json();
+```
+</CodeGroup>
+
+### Response Examples
+
+<CodeGroup>
+```json Processing
+{
+  "success": true,
+  "data": {
+    "task_id": "task_report456",
+    "simulation_id": "sim_xyz789",
+    "status": "processing",
+    "progress": 45,
+    "message": "[生成中] 正在生成章节: 关键发现",
+    "already_completed": false
+  }
+}
+```
+
+```json Completed
+{
+  "success": true,
+  "data": {
+    "task_id": "task_report456",
+    "simulation_id": "sim_xyz789",
+    "report_id": "report_abc123",
+    "status": "completed",
+    "progress": 100,
+    "message": "报告生成完成",
+    "result": {
+      "report_id": "report_abc123",
+      "simulation_id": "sim_xyz789",
+      "status": "completed"
+    },
+    "already_completed": false
+  }
+}
+```
+
+```json Already Completed
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_xyz789",
+    "report_id": "report_abc123",
+    "status": "completed",
+    "progress": 100,
+    "message": "报告已生成",
+    "already_completed": true
+  }
+}
+```
+
+```json Failed
+{
+  "success": true,
+  "data": {
+    "task_id": "task_report456",
+    "status": "failed",
+    "progress": 35,
+    "message": "报告生成失败: LLM API timeout",
+    "error": "Connection timeout after 30 seconds"
+  }
+}
+```
+</CodeGroup>
+
+## Get Report Details
+
+Retrieve a complete generated report.
+
+```bash
+GET /api/report/{report_id}
+```
+
+### Path Parameters
+
+<ParamField path="report_id" type="string" required>
+  Report identifier (e.g., `report_abc123`)
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Report object">
+    <ResponseField name="report_id" type="string">
+      Report identifier
+    </ResponseField>
+    <ResponseField name="simulation_id" type="string">
+      Associated simulation ID
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Report status: `generating`, `completed`, `failed`
+    </ResponseField>
+    <ResponseField name="outline" type="object">
+      Report outline/structure
+    </ResponseField>
+    <ResponseField name="markdown_content" type="string">
+      Full report content in Markdown format
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      ISO 8601 creation timestamp
+    </ResponseField>
+    <ResponseField name="completed_at" type="string">
+      ISO 8601 completion timestamp
+    </ResponseField>
+    <ResponseField name="error" type="string">
+      Error message (if failed)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl http://localhost:5001/api/report/report_abc123
+```
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "report_id": "report_abc123",
+    "simulation_id": "sim_xyz789",
+    "status": "completed",
+    "outline": {
+      "sections": [
+        {"title": "Executive Summary", "order": 1},
+        {"title": "Simulation Background", "order": 2},
+        {"title": "Key Findings", "order": 3},
+        {"title": "Detailed Analysis", "order": 4},
+        {"title": "Conclusions", "order": 5}
+      ]
+    },
+    "markdown_content": "# University Policy Simulation Report\n\n## Executive Summary\n\nThe simulation of 45 agents over 100 rounds revealed...",
+    "created_at": "2025-03-13T12:00:00Z",
+    "completed_at": "2025-03-13T12:08:30Z"
+  }
+}
+```
+
+## Get Report by Simulation
+
+Retrieve report for a specific simulation.
+
+```bash
+GET /api/report/by-simulation/{simulation_id}
+```
+
+### Path Parameters
+
+<ParamField path="simulation_id" type="string" required>
+  Simulation identifier
+</ParamField>
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "report_id": "report_abc123",
+    "simulation_id": "sim_xyz789",
+    "status": "completed",
+    "markdown_content": "...",
+    "completed_at": "2025-03-13T12:08:30Z"
+  },
+  "has_report": true
+}
+```
+
+### No Report Response
+
+```json
+{
+  "success": false,
+  "error": "该模拟暂无报告: sim_xyz789",
+  "has_report": false
+}
+```
+
+## Check Report Status (Quick)
+
+Quickly check if a simulation has a completed report.
+
+```bash
+GET /api/report/check/{simulation_id}
+```
+
+### Path Parameters
+
+<ParamField path="simulation_id" type="string" required>
+  Simulation identifier
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Report status check">
+    <ResponseField name="simulation_id" type="string">
+      Simulation identifier
+    </ResponseField>
+    <ResponseField name="has_report" type="boolean">
+      Whether report exists
+    </ResponseField>
+    <ResponseField name="report_status" type="string">
+      Report status if exists: `generating`, `completed`, `failed`
+    </ResponseField>
+    <ResponseField name="report_id" type="string">
+      Report identifier (if exists)
+    </ResponseField>
+    <ResponseField name="interview_unlocked" type="boolean">
+      Whether interview feature is unlocked (requires completed report)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl http://localhost:5001/api/report/check/sim_xyz789
+```
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_xyz789",
+    "has_report": true,
+    "report_status": "completed",
+    "report_id": "report_abc123",
+    "interview_unlocked": true
+  }
+}
+```
+
+## List Reports
+
+Retrieve all reports with optional filtering.
+
+```bash
+GET /api/report/list
+```
+
+### Query Parameters
+
+<ParamField query="simulation_id" type="string">
+  Filter by simulation ID (optional)
+</ParamField>
+
+<ParamField query="limit" type="integer" default="50">
+  Maximum number of reports to return
+</ParamField>
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "report_id": "report_abc123",
+      "simulation_id": "sim_xyz789",
+      "status": "completed",
+      "created_at": "2025-03-13T12:00:00Z",
+      "completed_at": "2025-03-13T12:08:30Z"
+    },
+    {
+      "report_id": "report_def456",
+      "simulation_id": "sim_uvw345",
+      "status": "generating",
+      "created_at": "2025-03-13T13:00:00Z"
+    }
+  ],
+  "count": 2
+}
+```
+
+## Download Report
+
+Download report as Markdown file.
+
+```bash
+GET /api/report/{report_id}/download
+```
+
+### Path Parameters
+
+<ParamField path="report_id" type="string" required>
+  Report identifier
+</ParamField>
+
+### Response
+
+Returns Markdown file with filename `{report_id}.md`.
+
+### Example
+
+```bash
+curl -O http://localhost:5001/api/report/report_abc123/download
+```
+
+## Get Report Sections
+
+Retrieve individual report sections (for progressive loading).
+
+```bash
+GET /api/report/{report_id}/sections
+```
+
+### Path Parameters
+
+<ParamField path="report_id" type="string" required>
+  Report identifier
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Sections data">
+    <ResponseField name="report_id" type="string">
+      Report identifier
+    </ResponseField>
+    <ResponseField name="sections" type="array">
+      Array of section objects with filename, section_index, and content
+    </ResponseField>
+    <ResponseField name="total_sections" type="number">
+      Number of sections
+    </ResponseField>
+    <ResponseField name="is_complete" type="boolean">
+      Whether all sections are generated
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl http://localhost:5001/api/report/report_abc123/sections
+```
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "report_id": "report_abc123",
+    "sections": [
+      {
+        "filename": "section_01.md",
+        "section_index": 1,
+        "content": "## Executive Summary\n\nThe simulation revealed..."
+      },
+      {
+        "filename": "section_02.md",
+        "section_index": 2,
+        "content": "## Simulation Background\n\nThis report analyzes..."
+      }
+    ],
+    "total_sections": 5,
+    "is_complete": false
+  }
+}
+```
+
+## Delete Report
+
+Permanently delete a report.
+
+```bash
+DELETE /api/report/{report_id}
+```
+
+<Warning>
+  This action cannot be undone. The report and all associated files will be permanently deleted.
+</Warning>
+
+### Path Parameters
+
+<ParamField path="report_id" type="string" required>
+  Report identifier to delete
+</ParamField>
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "message": "报告已删除: report_abc123"
+}
+```
+
+## Report Status Values
+
+<ResponseField name="generating" type="string">
+  Report is being generated by AI
+</ResponseField>
+
+<ResponseField name="completed" type="string">
+  Report generation completed successfully
+</ResponseField>
+
+<ResponseField name="failed" type="string">
+  Report generation failed with error
+</ResponseField>
+
+## Error Responses
+
+<CodeGroup>
+```json Missing Parameters
+{
+  "success": false,
+  "error": "请提供 task_id 或 simulation_id"
+}
+```
+
+```json Task Not Found
+{
+  "success": false,
+  "error": "任务不存在: task_invalid"
+}
+```
+
+```json Report Not Found
+{
+  "success": false,
+  "error": "报告不存在: report_invalid"
+}
+```
+
+```json No Report for Simulation
+{
+  "success": false,
+  "error": "该模拟暂无报告: sim_xyz789",
+  "has_report": false
+}
+```
+</CodeGroup>
+
+## Polling Strategy
+
+For optimal UX, use progressive polling intervals:
+
+```javascript
+async function pollReportWithBackoff(taskId) {
+  let interval = 2000; // Start with 2 seconds
+  const maxInterval = 10000; // Max 10 seconds
+  
+  while (true) {
+    const response = await fetch(
+      'http://localhost:5001/api/report/generate/status',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId })
+      }
+    );
+    const data = await response.json();
+    
+    if (data.data.status === 'completed' || data.data.status === 'failed') {
+      return data;
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, interval));
+    
+    // Increase interval (exponential backoff)
+    interval = Math.min(interval * 1.5, maxInterval);
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Chat with Report" icon="comment-dots" href="/api/report/chat">
+    Ask questions about your report
+  </Card>
+  <Card title="Interview Agents" icon="comments" href="/api/simulation/interview">
+    Interview simulation agents
+  </Card>
+</CardGroup>

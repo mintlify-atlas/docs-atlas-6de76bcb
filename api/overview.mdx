@@ -1,0 +1,192 @@
+---
+title: API Overview
+description: Introduction to the MiroFish API
+---
+
+## Introduction
+
+The MiroFish API provides a comprehensive REST interface for building swarm intelligence prediction engines. The API enables you to:
+
+- Build knowledge graphs from documents
+- Generate ontologies and entity relationships
+- Create and run agent-based simulations
+- Generate analytical reports and insights
+- Interview simulation agents
+
+## Base URL
+
+For local deployment:
+
+```
+http://localhost:5001
+```
+
+## API Architecture
+
+MiroFish uses a RESTful architecture with JSON request/response formats. The API is organized into three main modules:
+
+### Graph API (`/api/graph/*`)
+Manage projects, generate ontologies, and build knowledge graphs from documents.
+
+### Simulation API (`/api/simulation/*`)
+Create simulations, generate agent profiles, run simulations, and interview agents.
+
+### Report API (`/api/report/*`)
+Generate analytical reports, check report status, and chat with the Report Agent.
+
+## Response Format
+
+All API responses follow a consistent JSON structure:
+
+```json
+{
+  "success": true,
+  "data": {
+    // Response data
+  }
+}
+```
+
+Error responses include an `error` field:
+
+```json
+{
+  "success": false,
+  "error": "Error description",
+  "traceback": "Detailed error trace (in development)"
+}
+```
+
+## Error Handling
+
+### HTTP Status Codes
+
+<ResponseField name="200" type="OK">
+  Request succeeded
+</ResponseField>
+
+<ResponseField name="400" type="Bad Request">
+  Invalid request parameters or missing required fields
+</ResponseField>
+
+<ResponseField name="404" type="Not Found">
+  Resource not found (project, simulation, report, etc.)
+</ResponseField>
+
+<ResponseField name="500" type="Internal Server Error">
+  Server error during processing
+</ResponseField>
+
+### Common Error Responses
+
+<CodeGroup>
+```json Missing Required Field
+{
+  "success": false,
+  "error": "请提供 simulation_requirement"
+}
+```
+
+```json Resource Not Found
+{
+  "success": false,
+  "error": "项目不存在: proj_abc123"
+}
+```
+
+```json Configuration Error
+{
+  "success": false,
+  "error": "ZEP_API_KEY未配置"
+}
+```
+</CodeGroup>
+
+## Rate Limits
+
+<Note>
+  Currently no rate limits are enforced for local deployment. Production deployments may implement rate limiting in future versions.
+</Note>
+
+## Authentication
+
+<Warning>
+  Currently no authentication is required for local deployment. See the [Authentication](/api/authentication) page for details on future authentication plans.
+</Warning>
+
+## Quick Start
+
+Here's a complete workflow example:
+
+<CodeGroup>
+```bash Step 1: Generate Ontology
+curl -X POST http://localhost:5001/api/graph/ontology/generate \
+  -F "files=@document.pdf" \
+  -F "simulation_requirement=Analyze sentiment about university policy" \
+  -F "project_name=University Sentiment Analysis"
+```
+
+```bash Step 2: Build Knowledge Graph
+curl -X POST http://localhost:5001/api/graph/build \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "proj_abc123",
+    "chunk_size": 500,
+    "chunk_overlap": 50
+  }'
+```
+
+```bash Step 3: Create Simulation
+curl -X POST http://localhost:5001/api/simulation/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "proj_abc123",
+    "enable_twitter": true,
+    "enable_reddit": true
+  }'
+```
+
+```bash Step 4: Run Simulation
+curl -X POST http://localhost:5001/api/simulation/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "simulation_id": "sim_xyz789",
+    "platform": "parallel",
+    "max_rounds": 100
+  }'
+```
+</CodeGroup>
+
+## Asynchronous Operations
+
+Many operations (graph building, simulation preparation, report generation) are asynchronous and return a `task_id`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "task_id": "task_123abc",
+    "message": "Task started"
+  }
+}
+```
+
+Use the task status endpoints to monitor progress:
+
+```bash
+curl http://localhost:5001/api/graph/task/task_123abc
+```
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    Learn about API authentication
+  </Card>
+  <Card title="Graph API" icon="project-diagram" href="/api/graph/projects">
+    Build knowledge graphs
+  </Card>
+  <Card title="Simulation API" icon="users" href="/api/simulation/entities">
+    Run agent simulations
+  </Card>
+</CardGroup>

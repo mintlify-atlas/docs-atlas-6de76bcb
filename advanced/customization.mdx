@@ -1,0 +1,565 @@
+---
+title: 'Customization Guide'
+description: 'Extend and customize MiroFish to fit your specific prediction needs'
+---
+
+## Overview
+
+MiroFish is designed to be highly customizable. You can tailor agent personalities, modify simulation parameters, integrate custom LLM providers, and extend the Report Agent's toolset to match your specific use case.
+
+<CardGroup cols={2}>
+  <Card title="Agent Personalities" icon="user-gear">
+    Create custom agent personas with specific traits, backgrounds, and behaviors
+  </Card>
+  <Card title="Report Agent Tools" icon="toolbox">
+    Add custom retrieval and analysis tools for specialized insights
+  </Card>
+  <Card title="Simulation Parameters" icon="sliders">
+    Fine-tune time scales, action frequencies, and platform behaviors
+  </Card>
+  <Card title="LLM Integration" icon="brain">
+    Use your preferred LLM provider with OpenAI-compatible APIs
+  </Card>
+</CardGroup>
+
+---
+
+## Custom Agent Personalities
+
+### Understanding Agent Profile Structure
+
+Each agent in MiroFish has a detailed profile generated from knowledge graph entities. The profile controls how the agent thinks, speaks, and behaves.
+
+<Accordion title="Agent Profile Fields (Reddit/Twitter)">
+  **Core Identity**:
+  - `user_id`: Unique identifier (0-indexed integer)
+  - `username`: Social media handle (auto-generated with suffix)
+  - `name`: Display name extracted from entity
+  - `bio`: Public profile description (max 200 chars)
+  - `persona`: Detailed internal character description (up to 2000 chars)
+
+  **Personality Attributes**:
+  - `age`: Integer value affecting behavior patterns
+  - `gender`: "male", "female", or "other" (for institutions)
+  - `mbti`: MBTI type (e.g., INTJ, ENFP) influencing decision-making
+  - `country`: Geographic context
+  - `profession`: Occupational background
+  - `interested_topics`: Array of topic keywords
+
+  **Platform-Specific**:
+  - Reddit: `karma` (reputation score)
+  - Twitter: `friend_count`, `follower_count`, `statuses_count`
+</Accordion>
+
+### Customizing Persona Generation
+
+MiroFish uses LLM to generate detailed personas from knowledge graph entities. You can modify the generation logic in:
+
+**File**: `backend/app/services/oasis_profile_generator.py`
+
+#### Customize Individual Personas
+
+Edit the `_build_individual_persona_prompt()` method to emphasize specific traits:
+
+```python
+def _build_individual_persona_prompt(...):
+    # Add your custom instructions
+    custom_requirements = """
+    Additional Requirements:
+    - Emphasize technical expertise for engineer roles
+    - Include skepticism trait for journalist personas
+    - Add emotional volatility for student characters
+    """
+    
+    return f"""
+    {standard_prompt}
+    {custom_requirements}
+    
+    Entity Name: {entity_name}
+    ...
+    """
+```
+
+#### Customize Group/Institution Personas
+
+For organizations, edit `_build_group_persona_prompt()` to control communication style:
+
+```python
+def _build_group_persona_prompt(...):
+    return f"""
+    Generate official account settings with:
+    - Formal, professional tone
+    - Risk-averse communication
+    - Delayed response patterns (institutions react slower)
+    - Emphasis on official statements over opinions
+    
+    Institution: {entity_name}
+    Type: {entity_type}
+    ...
+    """
+```
+
+### Manual Persona Override
+
+For complete control, edit the generated profile JSON/CSV files before simulation:
+
+**Reddit Profiles** (`simulation_id/reddit_profiles.json`):
+```json
+[
+  {
+    "user_id": 0,
+    "username": "student_activist_472",
+    "name": "Zhang Wei",
+    "bio": "Sophomore at Wuhan University, passionate about student rights",
+    "persona": "Zhang Wei is a 20-year-old computer science student...[detailed 2000-char description]",
+    "age": 20,
+    "gender": "male",
+    "mbti": "ENFP",
+    "country": "中国",
+    "profession": "Student",
+    "interested_topics": ["campus safety", "student rights", "tech"]
+  }
+]
+```
+
+**Twitter Profiles** (`simulation_id/twitter_profiles.csv`):
+```csv
+user_id,name,username,user_char,description
+0,Zhang Wei,student_activist_472,"Sophomore passionate about student rights. Zhang Wei is a 20-year-old...","Sophomore at Wuhan University"
+```
+
+<Warning>
+If you manually edit profiles after running `/api/simulations/prepare`, you must also delete `run_state.json` before starting the simulation to prevent cache conflicts.
+</Warning>
+
+---
+
+## Custom Tools for Report Agent
+
+The Report Agent uses a toolset to retrieve information from the knowledge graph and simulation environment. You can add custom tools for domain-specific analysis.
+
+### Built-in Tools
+
+MiroFish includes four core retrieval tools:
+
+<CardGroup cols={2}>
+  <Card title="insight_forge" icon="magnifying-glass-chart">
+    **Deep Insight Retrieval**: Auto-generates sub-questions and performs multi-dimensional search across facts, entities, and relationships.
+  </Card>
+  <Card title="panorama_search" icon="panorama">
+    **Breadth Search**: Returns all related nodes and edges, including expired facts to show evolution over time.
+  </Card>
+  <Card title="quick_search" icon="bolt">
+    **Quick Search**: Lightweight semantic search for specific facts (limit-configurable).
+  </Card>
+  <Card title="interview_agents" icon="microphone">
+    **Agent Interview**: Calls real OASIS simulation API to interview agents on both platforms, returning authentic responses.
+  </Card>
+</CardGroup>
+
+### Adding a Custom Tool
+
+**Step 1: Define Tool in `report_agent.py`**
+
+Edit `backend/app/services/report_agent.py` in the `_define_tools()` method:
+
+```python
+def _define_tools(self) -> Dict[str, Dict[str, Any]]:
+    return {
+        # ... existing tools ...
+        "custom_sentiment_analyzer": {
+            "name": "custom_sentiment_analyzer",
+            "description": """
+            Analyze sentiment distribution across agent actions.
+            Returns positive/negative/neutral percentages.
+            """,
+            "parameters": {
+                "time_range": "Filter actions by simulated hours (optional)",
+                "agent_filter": "Filter by agent type (e.g., 'student', 'media')"
+            }
+        }
+    }
+```
+
+**Step 2: Implement Tool Execution Logic**
+
+Add the tool handler in `_execute_tool()` method:
+
+```python
+def _execute_tool(self, tool_name: str, parameters: Dict[str, Any], ...) -> str:
+    # ... existing tool handlers ...
+    
+    elif tool_name == "custom_sentiment_analyzer":
+        time_range = parameters.get("time_range")
+        agent_filter = parameters.get("agent_filter")
+        
+        # Get simulation actions
+        from .simulation_runner import SimulationRunner
+        actions = SimulationRunner.get_all_actions(
+            simulation_id=self.simulation_id
+        )
+        
+        # Filter actions
+        if agent_filter:
+            # Filter by agent type from profile metadata
+            pass
+        
+        # Analyze sentiment (call your custom sentiment model)
+        sentiment_dist = self._analyze_sentiment_distribution(actions)
+        
+        return json.dumps(sentiment_dist, ensure_ascii=False, indent=2)
+```
+
+**Step 3: Add Tool Description to Prompts**
+
+Update the tool description constant:
+
+```python
+TOOL_DESC_CUSTOM_SENTIMENT = """
+【情感分析工具】
+快速统计模拟中的情感分布，识别情绪趋势。
+
+使用场景：
+- 了解整体舆情情绪倾向
+- 对比不同群体的情感差异
+- 追踪情感随时间的演变
+
+返回内容：
+- 正面/负面/中性百分比
+- 各agent类型的情感分布
+- 情感强度指标
+"""
+```
+
+### Tool Usage in Reports
+
+Once defined, the Report Agent can call your custom tool during report generation:
+
+```markdown
+Thought: I need to understand sentiment trends across different groups.
+
+Action:
+<tool_call>
+{"name": "custom_sentiment_analyzer", "parameters": {"agent_filter": "student"}}
+</tool_call>
+
+Observation: {"positive": 15, "negative": 68, "neutral": 17, ...}
+
+Final Answer: Student sentiment is overwhelmingly negative (68%)...
+```
+
+---
+
+## Modifying Simulation Parameters
+
+### Time Configuration
+
+Control simulation duration and time resolution in the simulation config:
+
+**File**: `simulation_id/simulation_config.json`
+
+```json
+{
+  "time_config": {
+    "total_simulation_hours": 72,
+    "minutes_per_round": 30,
+    "start_time": "2024-01-01T08:00:00"
+  }
+}
+```
+
+**Parameters**:
+- `total_simulation_hours`: Total simulated time (e.g., 72 = 3 days)
+- `minutes_per_round`: Simulation granularity (30 mins = 2 rounds/hour)
+- `start_time`: Virtual timeline starting point (affects agent availability)
+
+**Calculation**:
+```
+Total Rounds = (total_simulation_hours * 60) / minutes_per_round
+Example: (72 * 60) / 30 = 144 rounds
+```
+
+<Tip>
+For testing, use fewer rounds to reduce API costs:
+- 10 rounds ≈ 5 simulated hours (good for testing)
+- 40 rounds ≈ 20 simulated hours (medium scenario)
+- 144 rounds ≈ 72 simulated hours (full simulation)
+</Tip>
+
+### Platform Actions Configuration
+
+Customize available actions for each platform in `backend/app/config.py`:
+
+```python
+class Config:
+    # Twitter actions
+    OASIS_TWITTER_ACTIONS = [
+        'CREATE_POST',   # Post a tweet
+        'LIKE_POST',     # Like another's post
+        'REPOST',        # Retweet
+        'FOLLOW',        # Follow another agent
+        'DO_NOTHING',    # Skip turn
+        'QUOTE_POST'     # Quote tweet with comment
+    ]
+    
+    # Reddit actions
+    OASIS_REDDIT_ACTIONS = [
+        'CREATE_POST',      # Submit a post
+        'CREATE_COMMENT',   # Comment on post
+        'LIKE_POST',        # Upvote post
+        'DISLIKE_POST',     # Downvote post
+        'LIKE_COMMENT',     # Upvote comment
+        'DISLIKE_COMMENT',  # Downvote comment
+        'SEARCH_POSTS',     # Search content
+        'SEARCH_USER',      # Find users
+        'TREND',            # Check trending
+        'REFRESH',          # Update feed
+        'DO_NOTHING',       # Skip turn
+        'FOLLOW',           # Follow user
+        'MUTE'              # Mute user
+    ]
+```
+
+<Note>
+Reducing available actions can speed up simulations but may reduce realism. For crisis scenarios, disable "DO_NOTHING" to force engagement.
+</Note>
+
+### Report Agent Configuration
+
+Control Report Agent behavior in `backend/app/config.py`:
+
+```python
+class Config:
+    # Maximum tools calls per report section
+    REPORT_AGENT_MAX_TOOL_CALLS = int(os.environ.get('REPORT_AGENT_MAX_TOOL_CALLS', '5'))
+    
+    # Reflection rounds for quality improvement
+    REPORT_AGENT_MAX_REFLECTION_ROUNDS = int(os.environ.get('REPORT_AGENT_MAX_REFLECTION_ROUNDS', '2'))
+    
+    # LLM temperature for creativity
+    REPORT_AGENT_TEMPERATURE = float(os.environ.get('REPORT_AGENT_TEMPERATURE', '0.5'))
+```
+
+Or set via environment variables in `.env`:
+
+```bash
+REPORT_AGENT_MAX_TOOL_CALLS=7
+REPORT_AGENT_TEMPERATURE=0.7
+```
+
+---
+
+## Integrating Custom LLM Providers
+
+MiroFish supports any LLM provider with an OpenAI-compatible API.
+
+### Configure in `.env`
+
+```bash
+# Use OpenAI directly
+LLM_API_KEY=sk-...
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL_NAME=gpt-4o-mini
+
+# Use Alibaba Qwen (recommended for Chinese content)
+LLM_API_KEY=sk-...
+LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_MODEL_NAME=qwen-plus
+
+# Use Azure OpenAI
+LLM_API_KEY=...
+LLM_BASE_URL=https://your-resource.openai.azure.com/openai/deployments/your-deployment
+LLM_MODEL_NAME=gpt-4
+
+# Use local LLM (Ollama, vLLM, etc.)
+LLM_API_KEY=dummy
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_MODEL_NAME=llama3
+```
+
+### Requirements for Custom Providers
+
+<Steps>
+  <Step title="OpenAI-Compatible API">
+    Your provider must support the `/v1/chat/completions` endpoint with streaming and JSON mode.
+  </Step>
+  <Step title="JSON Response Format">
+    For ontology generation and report planning, the LLM must support `response_format={"type": "json_object"}`.
+  </Step>
+  <Step title="Context Length">
+    Recommended minimum 8K tokens for agent persona generation, 16K+ for report generation.
+  </Step>
+  <Step title="Concurrency Support">
+    MiroFish makes parallel requests during profile generation (default 5 concurrent). Ensure your provider allows this.
+  </Step>
+</Steps>
+
+### Testing Your LLM Integration
+
+Verify your LLM works correctly:
+
+```bash
+# From backend directory
+cd backend
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+
+# Test basic chat
+python -c "
+from app.utils.llm_client import LLMClient
+client = LLMClient()
+response = client.chat([{'role': 'user', 'content': 'Say hello'}])
+print(response)
+"
+
+# Test JSON mode
+python -c "
+from app.utils.llm_client import LLMClient
+client = LLMClient()
+response = client.chat_json([{'role': 'user', 'content': 'Return JSON with a greeting key'}])
+print(response)
+"
+```
+
+---
+
+## Frontend Customization
+
+The MiroFish frontend is built with Next.js and can be customized for branding or workflow changes.
+
+### Key Files
+
+**File**: `frontend/src/app/layout.tsx` — Global layout and branding  
+**File**: `frontend/src/components/` — Reusable UI components  
+**File**: `frontend/src/app/api/` — API route handlers (proxy to backend)
+
+### Customizing the UI Theme
+
+Edit `frontend/tailwind.config.ts` to change colors and styling:
+
+```typescript
+const config: Config = {
+  theme: {
+    extend: {
+      colors: {
+        primary: '#your-brand-color',
+        secondary: '#your-accent-color',
+      },
+    },
+  },
+};
+```
+
+### Adding Custom Pages
+
+Create new pages in `frontend/src/app/`:
+
+```typescript
+// frontend/src/app/custom-analysis/page.tsx
+export default function CustomAnalysisPage() {
+  return (
+    <div>
+      <h1>Custom Analysis Dashboard</h1>
+      {/* Your custom components */}
+    </div>
+  );
+}
+```
+
+---
+
+## Adding Custom Seed Processors
+
+MiroFish supports PDF, Markdown, and TXT files by default. To add support for new formats:
+
+**File**: `backend/app/services/text_processor.py`
+
+```python
+class TextProcessor:
+    @staticmethod
+    def extract_text_from_file(file_path: str) -> str:
+        ext = os.path.splitext(file_path)[1].lower()
+        
+        # Add your custom format
+        if ext == '.docx':
+            return TextProcessor._extract_from_docx(file_path)
+        elif ext == '.html':
+            return TextProcessor._extract_from_html(file_path)
+        # ... existing formats ...
+    
+    @staticmethod
+    def _extract_from_docx(file_path: str) -> str:
+        import docx
+        doc = docx.Document(file_path)
+        return '\n'.join([para.text for para in doc.paragraphs])
+```
+
+Update allowed extensions in `backend/app/config.py`:
+
+```python
+class Config:
+    ALLOWED_EXTENSIONS = {'pdf', 'md', 'txt', 'markdown', 'docx', 'html'}
+```
+
+---
+
+## Plugin/Extension Architecture
+
+MiroFish currently doesn't have a formal plugin system, but you can extend it through:
+
+### Custom API Endpoints
+
+Add endpoints in `backend/app/routes/` to expose new functionality:
+
+```python
+# backend/app/routes/custom.py
+from flask import Blueprint, jsonify
+
+custom_bp = Blueprint('custom', __name__, url_prefix='/api/custom')
+
+@custom_bp.route('/analyze-network', methods=['POST'])
+def analyze_network():
+    # Your custom network analysis logic
+    return jsonify({"analysis": "..."})
+```
+
+Register in `backend/app/__init__.py`:
+
+```python
+from .routes.custom import custom_bp
+app.register_blueprint(custom_bp)
+```
+
+### Custom Report Generators
+
+Subclass `ReportAgent` to create specialized report types:
+
+```python
+from app.services.report_agent import ReportAgent
+
+class SentimentReportAgent(ReportAgent):
+    def plan_outline(self, ...):
+        # Custom outline focusing on sentiment
+        return ReportOutline(
+            title="Sentiment Evolution Report",
+            sections=[...]
+        )
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Performance Optimization" icon="gauge-high" href="/advanced/performance">
+    Learn how to optimize API usage and simulation performance
+  </Card>
+  <Card title="Troubleshooting" icon="circle-question" href="/advanced/troubleshooting">
+    Solve common customization and integration issues
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all API endpoints for programmatic customization
+  </Card>
+  <Card title="Use Cases" icon="lightbulb" href="/advanced/use-cases">
+    See real-world examples of customized simulations
+  </Card>
+</CardGroup>

@@ -1,0 +1,197 @@
+---
+title: Upload Seed Materials
+description: Learn how to provide input documents to MiroFish for building your prediction simulation
+---
+
+## Overview
+
+Seed materials are the foundational documents that MiroFish uses to build its knowledge graph and generate your prediction simulation. These documents provide the context, entities, relationships, and background information needed for the swarm intelligence engine.
+
+## Supported File Formats
+
+MiroFish accepts the following document formats:
+
+<CardGroup cols={3}>
+  <Card title="PDF Documents" icon="file-pdf">
+    Research papers, reports, news articles
+  </Card>
+  <Card title="Markdown Files" icon="markdown">
+    Structured documentation and notes
+  </Card>
+  <Card title="Text Files" icon="file-lines">
+    Plain text content and transcripts
+  </Card>
+</CardGroup>
+
+## Upload Process
+
+<Steps>
+  <Step title="Prepare Your Documents">
+    Gather relevant documents that contain information about your simulation scenario. Multiple files are recommended for richer context.
+  </Step>
+  
+  <Step title="Access the Upload Interface">
+    Navigate to the project creation page and locate the file upload area.
+  </Step>
+  
+  <Step title="Upload Files">
+    ```bash
+    POST /api/graph/ontology/generate
+    Content-Type: multipart/form-data
+    
+    files: [file1.pdf, file2.txt, ...]
+    simulation_requirement: "Your simulation objective"
+    project_name: "My Project"
+    additional_context: "Optional context"
+    ```
+  </Step>
+  
+  <Step title="Add Simulation Requirements">
+    Provide a clear description of what you want to simulate. This guides the ontology generation and agent behaviors.
+    
+    <Info>
+    Be specific about the scenario, timeframe, and key stakeholders you want to model.
+    </Info>
+  </Step>
+  
+  <Step title="Submit and Process">
+    Click submit to upload files and begin text extraction. The system will:
+    - Parse all uploaded documents
+    - Extract and preprocess text content
+    - Save files to your project directory
+  </Step>
+</Steps>
+
+## What Makes Good Seed Material
+
+### Rich Entity Information
+
+Your documents should contain:
+
+- **Named entities**: People, organizations, locations, events
+- **Relationships**: How entities interact and relate to each other
+- **Context**: Background information, historical events, motivations
+- **Diversity**: Multiple perspectives and sources
+
+### Quality Guidelines
+
+<CardGroup cols={2}>
+  <Card title="Do Include" icon="check">
+    - News articles about the event
+    - Background reports and analysis
+    - Stakeholder statements
+    - Related historical context
+    - Multiple viewpoints
+  </Card>
+  <Card title="Avoid" icon="xmark">
+    - Duplicate content
+    - Unrelated information
+    - Purely statistical data without context
+    - Excessively technical jargon without explanation
+  </Card>
+</CardGroup>
+
+## Example Use Cases
+
+### Public Opinion Simulation
+
+```markdown
+Simulation Requirement:
+"Simulate public reaction on social media if a university announces 
+a major policy change affecting student tuition."
+
+Recommended Materials:
+- University announcement drafts
+- Previous policy documents
+- Student forum discussions
+- News coverage of similar events
+- Stakeholder position statements
+```
+
+### Crisis Response Modeling
+
+```markdown
+Simulation Requirement:
+"Model how different stakeholder groups would respond to a 
+corporate crisis on social media platforms."
+
+Recommended Materials:
+- Crisis background reports
+- Company statements and history
+- Public sentiment analysis
+- Expert commentary
+- Similar case studies
+```
+
+## API Response
+
+After successful upload, you'll receive:
+
+```json
+{
+  "success": true,
+  "data": {
+    "project_id": "proj_a1b2c3d4",
+    "project_name": "My Simulation Project",
+    "ontology": {
+      "entity_types": [...],
+      "edge_types": [...]
+    },
+    "analysis_summary": "Brief analysis of content",
+    "files": [
+      {"filename": "report.pdf", "size": 245632},
+      {"filename": "article.txt", "size": 12890}
+    ],
+    "total_text_length": 125430
+  }
+}
+```
+
+<Note>
+The `project_id` is important - you'll need it for all subsequent operations including graph construction and simulation setup.
+</Note>
+
+## Text Processing
+
+MiroFish automatically:
+
+1. **Extracts text** from uploaded files using format-specific parsers
+2. **Preprocesses content** to remove formatting artifacts and normalize text
+3. **Preserves structure** to maintain document context and relationships
+4. **Generates ontology** using LLM analysis to identify entity and relationship types
+
+## Next Steps
+
+Once your seed materials are uploaded and processed:
+
+<CardGroup cols={2}>
+  <Card title="Build the Graph" href="/guide/graph-construction" icon="diagram-project">
+    Construct the knowledge graph from your documents
+  </Card>
+  <Card title="Review Ontology" icon="list-tree">
+    Examine the automatically generated entity and relationship types
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<Warning>
+**File Format Errors**: Ensure your files have the correct extensions (.pdf, .md, .txt). Corrupted or password-protected PDFs may fail to process.
+</Warning>
+
+**Common Issues:**
+
+- **"No valid files"**: Check that at least one file has an allowed extension
+- **"Text extraction failed"**: File may be corrupted or in an unsupported format
+- **Large files**: Processing may take longer for documents over 10MB
+
+## Best Practices
+
+<Tip>
+**Optimal document count**: 3-8 documents provide good coverage without overwhelming the system. Each document should contribute unique information.
+</Tip>
+
+1. **Diverse sources**: Include multiple perspectives on your scenario
+2. **Recent content**: Use up-to-date information when modeling current events
+3. **Contextual depth**: Balance breadth (many topics) with depth (detailed information)
+4. **Clear requirements**: Write specific, actionable simulation requirements

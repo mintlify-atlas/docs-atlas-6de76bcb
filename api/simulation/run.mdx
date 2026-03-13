@@ -1,0 +1,460 @@
+---
+title: Run Simulation
+description: Start and control agent-based simulations
+---
+
+## Create Simulation
+
+Create a new simulation instance.
+
+```bash
+POST /api/simulation/create
+```
+
+### Request Body (JSON)
+
+<ParamField body="project_id" type="string" required>
+  Project identifier from graph building
+</ParamField>
+
+<ParamField body="graph_id" type="string">
+  Knowledge graph ID (optional, will use project's graph_id if not provided)
+</ParamField>
+
+<ParamField body="enable_twitter" type="boolean" default="true">
+  Enable Twitter platform simulation
+</ParamField>
+
+<ParamField body="enable_reddit" type="boolean" default="true">
+  Enable Reddit platform simulation
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Simulation object">
+    <ResponseField name="simulation_id" type="string">
+      Unique simulation identifier
+    </ResponseField>
+    <ResponseField name="project_id" type="string">
+      Associated project ID
+    </ResponseField>
+    <ResponseField name="graph_id" type="string">
+      Associated graph ID
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Simulation status: `created`, `preparing`, `ready`, `running`, `completed`, `stopped`, `failed`
+    </ResponseField>
+    <ResponseField name="enable_twitter" type="boolean">
+      Twitter enabled
+    </ResponseField>
+    <ResponseField name="enable_reddit" type="boolean">
+      Reddit enabled
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      ISO 8601 timestamp
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:5001/api/simulation/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "proj_abc123",
+    "enable_twitter": true,
+    "enable_reddit": true
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'http://localhost:5001/api/simulation/create',
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      project_id: 'proj_abc123',
+      enable_twitter: true,
+      enable_reddit: true
+    })
+  }
+);
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:5001/api/simulation/create',
+    json={
+        'project_id': 'proj_abc123',
+        'enable_twitter': True,
+        'enable_reddit': True
+    }
+)
+data = response.json()
+```
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_xyz789",
+    "project_id": "proj_abc123",
+    "graph_id": "mirofish_graph123",
+    "status": "created",
+    "enable_twitter": true,
+    "enable_reddit": true,
+    "created_at": "2025-03-13T10:00:00Z"
+  }
+}
+```
+
+## Prepare Simulation
+
+<Note>
+  Prepare simulation environment by generating agent profiles and configuration. This is an asynchronous operation.
+</Note>
+
+```bash
+POST /api/simulation/prepare
+```
+
+### Request Body (JSON)
+
+<ParamField body="simulation_id" type="string" required>
+  Simulation identifier from create endpoint
+</ParamField>
+
+<ParamField body="entity_types" type="array">
+  Filter entities by types (e.g., `["Student", "Professor"]`). If omitted, uses all entity types.
+</ParamField>
+
+<ParamField body="use_llm_for_profiles" type="boolean" default="true">
+  Use LLM to generate rich agent profiles with personality traits
+</ParamField>
+
+<ParamField body="parallel_profile_count" type="integer" default="5">
+  Number of profiles to generate in parallel (1-10)
+</ParamField>
+
+<ParamField body="force_regenerate" type="boolean" default="false">
+  Force regeneration even if preparation already completed
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Preparation task info">
+    <ResponseField name="simulation_id" type="string">
+      Simulation identifier
+    </ResponseField>
+    <ResponseField name="task_id" type="string">
+      Task ID for progress tracking
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Status: `preparing` or `ready` (if already prepared)
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Status message
+    </ResponseField>
+    <ResponseField name="already_prepared" type="boolean">
+      Whether preparation was already completed
+    </ResponseField>
+    <ResponseField name="expected_entities_count" type="number">
+      Expected number of agents
+    </ResponseField>
+    <ResponseField name="entity_types" type="array">
+      Entity types being processed
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST http://localhost:5001/api/simulation/prepare \
+  -H "Content-Type: application/json" \
+  -d '{
+    "simulation_id": "sim_xyz789",
+    "entity_types": ["Student", "Professor"],
+    "use_llm_for_profiles": true,
+    "parallel_profile_count": 5
+  }'
+```
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_xyz789",
+    "task_id": "task_prep123",
+    "status": "preparing",
+    "message": "准备任务已启动，请通过 /api/simulation/prepare/status 查询进度",
+    "already_prepared": false,
+    "expected_entities_count": 45,
+    "entity_types": ["Student", "Professor"]
+  }
+}
+```
+
+## Start Simulation
+
+Start running the prepared simulation.
+
+```bash
+POST /api/simulation/start
+```
+
+### Request Body (JSON)
+
+<ParamField body="simulation_id" type="string" required>
+  Simulation identifier
+</ParamField>
+
+<ParamField body="platform" type="string" default="parallel">
+  Platform to run: `twitter`, `reddit`, or `parallel` (both)
+</ParamField>
+
+<ParamField body="max_rounds" type="integer">
+  Maximum simulation rounds to run (optional, uses LLM-generated config if not specified)
+</ParamField>
+
+<ParamField body="enable_graph_memory_update" type="boolean" default="false">
+  Enable updating knowledge graph with agent activities during simulation
+</ParamField>
+
+<ParamField body="force" type="boolean" default="false">
+  Force restart (stops running simulation and clears logs)
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Simulation run state">
+    <ResponseField name="simulation_id" type="string">
+      Simulation identifier
+    </ResponseField>
+    <ResponseField name="runner_status" type="string">
+      Runner status: `running`, `completed`, `stopped`, `failed`
+    </ResponseField>
+    <ResponseField name="process_pid" type="number">
+      Process ID of the simulation runner
+    </ResponseField>
+    <ResponseField name="twitter_running" type="boolean">
+      Whether Twitter simulation is running
+    </ResponseField>
+    <ResponseField name="reddit_running" type="boolean">
+      Whether Reddit simulation is running
+    </ResponseField>
+    <ResponseField name="started_at" type="string">
+      ISO 8601 timestamp when simulation started
+    </ResponseField>
+    <ResponseField name="graph_memory_update_enabled" type="boolean">
+      Whether graph memory updates are enabled
+    </ResponseField>
+    <ResponseField name="force_restarted" type="boolean">
+      Whether simulation was force restarted
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL - Basic
+curl -X POST http://localhost:5001/api/simulation/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "simulation_id": "sim_xyz789",
+    "platform": "parallel",
+    "max_rounds": 100
+  }'
+```
+
+```bash cURL - With Memory Update
+curl -X POST http://localhost:5001/api/simulation/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "simulation_id": "sim_xyz789",
+    "platform": "parallel",
+    "max_rounds": 100,
+    "enable_graph_memory_update": true
+  }'
+```
+
+```bash cURL - Force Restart
+curl -X POST http://localhost:5001/api/simulation/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "simulation_id": "sim_xyz789",
+    "force": true
+  }'
+```
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_xyz789",
+    "runner_status": "running",
+    "process_pid": 12345,
+    "twitter_running": true,
+    "reddit_running": true,
+    "started_at": "2025-03-13T11:00:00Z",
+    "graph_memory_update_enabled": false,
+    "force_restarted": false
+  }
+}
+```
+
+## Stop Simulation
+
+Stop a running simulation.
+
+```bash
+POST /api/simulation/stop
+```
+
+### Request Body (JSON)
+
+<ParamField body="simulation_id" type="string" required>
+  Simulation identifier
+</ParamField>
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_xyz789",
+    "runner_status": "stopped",
+    "message": "Simulation stopped successfully"
+  }
+}
+```
+
+## Platform Options
+
+### Parallel Mode (Recommended)
+
+```json
+{
+  "platform": "parallel"
+}
+```
+
+Runs both Twitter and Reddit simultaneously for maximum realism.
+
+### Single Platform Mode
+
+<CodeGroup>
+```json Reddit Only
+{
+  "platform": "reddit"
+}
+```
+
+```json Twitter Only
+{
+  "platform": "twitter"
+}
+```
+</CodeGroup>
+
+## Graph Memory Updates
+
+<Note>
+  Enable `enable_graph_memory_update` to have agent activities update the knowledge graph in real-time.
+</Note>
+
+When enabled:
+- Agent posts, comments, and interactions are added to the knowledge graph
+- Creates a "living memory" of simulation events
+- Useful for post-simulation analysis and insights
+- Requires valid `graph_id` in the project
+
+### Trade-offs
+
+<Warning>
+  **Performance Impact:** Graph memory updates can slow simulation by 10-20% due to API calls.
+</Warning>
+
+- **Enabled:** Rich memory, post-simulation insights, slower execution
+- **Disabled:** Faster execution, no persistent memory in graph
+
+## Error Responses
+
+<CodeGroup>
+```json Missing Simulation ID
+{
+  "success": false,
+  "error": "请提供 simulation_id"
+}
+```
+
+```json Not Prepared
+{
+  "success": false,
+  "error": "模拟未准备好，当前状态: created，请先调用 /prepare 接口"
+}
+```
+
+```json Already Running
+{
+  "success": false,
+  "error": "模拟正在运行中，请先调用 /stop 接口停止，或使用 force=true 强制重新开始"
+}
+```
+
+```json Invalid Platform
+{
+  "success": false,
+  "error": "无效的平台类型: instagram，可选: twitter/reddit/parallel"
+}
+```
+
+```json Invalid Max Rounds
+{
+  "success": false,
+  "error": "max_rounds 必须是正整数"
+}
+```
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Check Status" icon="chart-line" href="/api/simulation/status">
+    Monitor simulation progress
+  </Card>
+  <Card title="Interview Agents" icon="comments" href="/api/simulation/interview">
+    Interview agents during or after simulation
+  </Card>
+</CardGroup>

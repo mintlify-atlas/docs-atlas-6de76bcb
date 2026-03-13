@@ -1,0 +1,292 @@
+---
+title: Projects
+description: Create and manage MiroFish projects
+---
+
+## Create Project (Implicit)
+
+Projects are automatically created when you generate an ontology. See [Generate Ontology](/api/graph/ontology) for details.
+
+## Get Project Details
+
+<Note>
+  Retrieve information about a specific project including files, ontology, and graph status.
+</Note>
+
+```bash
+GET /api/graph/project/{project_id}
+```
+
+### Path Parameters
+
+<ParamField path="project_id" type="string" required>
+  Unique project identifier (e.g., `proj_abc123`)
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Project object">
+    <ResponseField name="project_id" type="string">
+      Unique project identifier
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Project name
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Project status: `created`, `ontology_generated`, `graph_building`, `graph_completed`, `failed`
+    </ResponseField>
+    <ResponseField name="simulation_requirement" type="string">
+      Simulation requirement description
+    </ResponseField>
+    <ResponseField name="ontology" type="object">
+      Generated ontology with entity_types and edge_types
+    </ResponseField>
+    <ResponseField name="graph_id" type="string">
+      Associated graph ID (if graph built)
+    </ResponseField>
+    <ResponseField name="files" type="array">
+      List of uploaded files
+    </ResponseField>
+    <ResponseField name="total_text_length" type="number">
+      Total characters extracted from documents
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      ISO 8601 timestamp
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:5001/api/graph/project/proj_abc123
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'http://localhost:5001/api/graph/project/proj_abc123'
+);
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'http://localhost:5001/api/graph/project/proj_abc123'
+)
+data = response.json()
+```
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "project_id": "proj_abc123",
+    "name": "University Sentiment Analysis",
+    "status": "graph_completed",
+    "simulation_requirement": "Analyze public sentiment about university policy changes",
+    "ontology": {
+      "entity_types": [
+        {"name": "Student", "description": "University students"},
+        {"name": "Professor", "description": "Faculty members"}
+      ],
+      "edge_types": [
+        {"name": "STUDIES_WITH", "description": "Student-professor relationship"}
+      ]
+    },
+    "graph_id": "mirofish_xyz789",
+    "files": [
+      {"filename": "policy_document.pdf", "size": 245680}
+    ],
+    "total_text_length": 45230,
+    "created_at": "2025-03-13T10:30:00Z"
+  }
+}
+```
+
+## List Projects
+
+Retrieve all projects with pagination.
+
+```bash
+GET /api/graph/project/list
+```
+
+### Query Parameters
+
+<ParamField query="limit" type="integer" default="50">
+  Maximum number of projects to return (max: 100)
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of project objects (same structure as Get Project)
+</ResponseField>
+
+<ResponseField name="count" type="integer">
+  Number of projects returned
+</ResponseField>
+
+### Example
+
+```bash
+curl "http://localhost:5001/api/graph/project/list?limit=20"
+```
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "project_id": "proj_abc123",
+      "name": "University Sentiment Analysis",
+      "status": "graph_completed",
+      "created_at": "2025-03-13T10:30:00Z"
+    },
+    {
+      "project_id": "proj_def456",
+      "name": "Market Research",
+      "status": "ontology_generated",
+      "created_at": "2025-03-12T15:20:00Z"
+    }
+  ],
+  "count": 2
+}
+```
+
+## Delete Project
+
+Permanently delete a project and its associated files.
+
+```bash
+DELETE /api/graph/project/{project_id}
+```
+
+<Warning>
+  This action cannot be undone. All project files and extracted text will be permanently deleted.
+</Warning>
+
+### Path Parameters
+
+<ParamField path="project_id" type="string" required>
+  Unique project identifier to delete
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the deletion succeeded
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message
+</ResponseField>
+
+### Example
+
+```bash
+curl -X DELETE http://localhost:5001/api/graph/project/proj_abc123
+```
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "message": "项目已删除: proj_abc123"
+}
+```
+
+## Reset Project
+
+Reset a project to rebuild the knowledge graph.
+
+```bash
+POST /api/graph/project/{project_id}/reset
+```
+
+### Path Parameters
+
+<ParamField path="project_id" type="string" required>
+  Unique project identifier to reset
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the reset succeeded
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Updated project object
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST http://localhost:5001/api/graph/project/proj_abc123/reset
+```
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "message": "项目已重置: proj_abc123",
+  "data": {
+    "project_id": "proj_abc123",
+    "status": "ontology_generated",
+    "graph_id": null
+  }
+}
+```
+
+## Error Responses
+
+<CodeGroup>
+```json Project Not Found
+{
+  "success": false,
+  "error": "项目不存在: proj_invalid"
+}
+```
+
+```json Delete Failed
+{
+  "success": false,
+  "error": "项目不存在或删除失败: proj_abc123"
+}
+```
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Generate Ontology" icon="sitemap" href="/api/graph/ontology">
+    Create a project by generating an ontology
+  </Card>
+  <Card title="Build Graph" icon="project-diagram" href="/api/graph/build">
+    Build a knowledge graph from your project
+  </Card>
+</CardGroup>

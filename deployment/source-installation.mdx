@@ -1,0 +1,330 @@
+---
+title: Source Installation
+description: Step-by-step guide to install MiroFish from source code
+---
+
+This guide walks you through installing MiroFish from source code, giving you full control over the installation and configuration process.
+
+## Prerequisites
+
+Before proceeding, ensure you have all the [system requirements](/deployment/requirements) installed:
+
+- Node.js 18+
+- Python 3.11 or 3.12
+- uv package manager
+- LLM API access (e.g., Alibaba Qwen or OpenAI)
+- Zep Cloud API key
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the MiroFish repository from GitHub:
+    
+    ```bash
+    git clone https://github.com/666ghj/MiroFish.git
+    cd MiroFish
+    ```
+    
+    <Info>
+    Make sure you're in the project root directory for all subsequent commands.
+    </Info>
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Copy the example environment file and configure your API keys:
+    
+    ```bash
+    cp .env.example .env
+    ```
+    
+    Edit the `.env` file with your preferred text editor:
+    
+    ```bash
+    nano .env  # or vim, code, etc.
+    ```
+    
+    **Required configuration:**
+    
+    ```env
+    # LLM API Configuration (OpenAI SDK format)
+    # Recommended: Alibaba Qwen-plus via Bailian Platform
+    LLM_API_KEY=your_api_key_here
+    LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+    LLM_MODEL_NAME=qwen-plus
+    
+    # Zep Cloud Configuration
+    # Free monthly quota: https://app.getzep.com/
+    ZEP_API_KEY=your_zep_api_key_here
+    ```
+    
+    <Warning>
+    Never commit your `.env` file to version control. It contains sensitive API keys.
+    </Warning>
+    
+    See the [Configuration Guide](/deployment/configuration) for detailed information about all available environment variables.
+  </Step>
+
+  <Step title="Install Dependencies">
+    MiroFish provides convenient scripts to install all dependencies.
+    
+    ### Option 1: One-Command Installation (Recommended)
+    
+    Install all dependencies for root, frontend, and backend in a single command:
+    
+    ```bash
+    npm run setup:all
+    ```
+    
+    This command will:
+    1. Install Node.js dependencies for the root project
+    2. Install Node.js dependencies for the frontend
+    3. Create a Python virtual environment using uv
+    4. Install all Python dependencies for the backend
+    
+    ### Option 2: Step-by-Step Installation
+    
+    If you prefer to install dependencies separately:
+    
+    <CodeGroup>
+    ```bash Node Dependencies
+    # Install Node dependencies (root + frontend)
+    npm run setup
+    ```
+    
+    ```bash Python Dependencies
+    # Install Python dependencies (backend)
+    npm run setup:backend
+    ```
+    </CodeGroup>
+    
+    <Note>
+    The backend installation automatically creates a virtual environment using uv. You don't need to create one manually.
+    </Note>
+  </Step>
+
+  <Step title="Start Services">
+    Launch both the frontend and backend services:
+    
+    ```bash
+    npm run dev
+    ```
+    
+    This command uses [concurrently](https://www.npmjs.com/package/concurrently) to run both services simultaneously with color-coded output.
+    
+    **Expected output:**
+    ```
+    [backend] * Running on http://127.0.0.1:5001
+    [frontend] - ready started server on 0.0.0.0:3000
+    ```
+    
+    ### Start Services Individually
+    
+    You can also start each service separately if needed:
+    
+    <CodeGroup>
+    ```bash Backend Only
+    npm run backend
+    ```
+    
+    ```bash Frontend Only
+    npm run frontend
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Verify Installation">
+    Once both services are running, verify the installation:
+    
+    1. **Access the Frontend:**
+       Open your browser and navigate to:
+       ```
+       http://localhost:3000
+       ```
+    
+    2. **Check Backend API:**
+       Verify the backend is responding:
+       ```bash
+       curl http://localhost:5001/api/health
+       ```
+    
+    <Info>
+    If you see the MiroFish interface and the API responds, your installation is successful!
+    </Info>
+  </Step>
+</Steps>
+
+## Service URLs
+
+After installation, MiroFish services are accessible at:
+
+<CardGroup cols={2}>
+  <Card title="Frontend Interface" icon="globe">
+    **URL:** http://localhost:3000
+    
+    The main web interface for creating and managing simulations.
+  </Card>
+  
+  <Card title="Backend API" icon="server">
+    **URL:** http://localhost:5001
+    
+    The Flask API that powers the simulation engine.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Port Already in Use
+
+<Tip>
+**Error:** `EADDRINUSE: address already in use ::1:3000`
+
+**Solution:** Another application is using the required port. Find and stop the conflicting process:
+
+```bash
+# Find process using port 3000
+lsof -i :3000
+
+# Kill the process (replace PID with actual process ID)
+kill -9 PID
+```
+</Tip>
+
+### Python Version Mismatch
+
+<Tip>
+**Error:** `Python version 3.13 is not supported`
+
+**Solution:** MiroFish requires Python 3.11 or 3.12. Install a compatible version:
+
+```bash
+# Using pyenv (recommended)
+pyenv install 3.12
+pyenv local 3.12
+
+# Verify version
+python --version
+```
+</Tip>
+
+### Missing API Keys
+
+<Tip>
+**Error:** `LLM_API_KEY not configured`
+
+**Solution:** Ensure your `.env` file contains valid API keys:
+
+1. Check that `.env` exists in the project root
+2. Verify `LLM_API_KEY` and `ZEP_API_KEY` are set
+3. Restart the backend service after updating `.env`
+</Tip>
+
+### uv Not Found
+
+<Tip>
+**Error:** `command not found: uv`
+
+**Solution:** Install the uv package manager:
+
+```bash
+# On macOS and Linux:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Add to PATH (if needed)
+export PATH="$HOME/.cargo/bin:$PATH"
+
+# Verify installation
+uv --version
+```
+</Tip>
+
+### Dependency Installation Fails
+
+<Tip>
+**Error:** `npm install failed` or `uv sync failed`
+
+**Solution:** Clear caches and retry:
+
+```bash
+# Clear npm cache
+npm cache clean --force
+
+# Remove node_modules and reinstall
+rm -rf node_modules frontend/node_modules
+npm run setup
+
+# For Python dependencies
+cd backend
+rm -rf .venv
+uv sync
+```
+</Tip>
+
+### Backend Crashes on Startup
+
+<Tip>
+**Error:** Backend exits immediately after starting
+
+**Solution:** Check the backend logs and verify configuration:
+
+1. Run backend directly to see full error output:
+   ```bash
+   cd backend
+   uv run python run.py
+   ```
+
+2. Common issues:
+   - Invalid API keys in `.env`
+   - Missing required environment variables
+   - Port 5001 already in use
+   - Python dependency conflicts
+</Tip>
+
+## Development Tips
+
+### Hot Reload
+
+Both frontend and backend support hot reload during development:
+
+- **Frontend:** Next.js automatically reloads on file changes
+- **Backend:** Flask runs in debug mode with auto-reload enabled
+
+### Building for Production
+
+To build the frontend for production:
+
+```bash
+npm run build
+```
+
+This creates an optimized production build in `frontend/.next/`.
+
+### Running Tests
+
+If you're contributing to MiroFish, run tests to verify your changes:
+
+```bash
+# Backend tests (from backend directory)
+cd backend
+uv run pytest
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Learn about all available configuration options and environment variables.
+  </Card>
+  
+  <Card title="Create Your First Simulation" icon="play" href="/quickstart">
+    Start creating predictions with MiroFish.
+  </Card>
+</CardGroup>
+
+## Getting Help
+
+If you encounter issues not covered here:
+
+- Check the [GitHub Issues](https://github.com/666ghj/MiroFish/issues)
+- Join the [Discord community](https://discord.com/channels/1469200078932545606/1469201282077163739)
+- Follow [@mirofish_ai](https://x.com/mirofish_ai) on X for updates

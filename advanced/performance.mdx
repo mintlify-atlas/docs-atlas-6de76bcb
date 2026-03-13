@@ -1,0 +1,701 @@
+---
+title: 'Performance & Optimization'
+description: 'Optimize MiroFish simulations for cost, speed, and scale'
+---
+
+## Overview
+
+MiroFish simulations can consume significant LLM API resources depending on configuration. This guide helps you understand performance factors and optimize for your use case.
+
+<CardGroup cols={2}>
+  <Card title="Cost Optimization" icon="dollar-sign">
+    Reduce LLM API consumption and Zep Cloud usage
+  </Card>
+  <Card title="Speed Optimization" icon="gauge-high">
+    Accelerate simulation rounds and report generation
+  </Card>
+  <Card title="Memory Management" icon="memory">
+    Handle large-scale simulations efficiently
+  </Card>
+  <Card title="Production Deployment" icon="server">
+    Best practices for reliable production systems
+  </Card>
+</CardGroup>
+
+---
+
+## LLM API Consumption and Costs
+
+### Where LLM Calls Happen
+
+MiroFish uses LLMs at multiple stages:
+
+<Steps>
+  <Step title="Ontology Generation">
+    **1 call** — Analyzes seed material to generate entity types and relationship schema.
+    
+    **Tokens**: ~2K-5K input, ~1K output
+  </Step>
+  <Step title="Agent Profile Generation">
+    **N calls** (parallel) — One per agent, creates detailed personas.
+    
+    **Tokens per agent**: ~1K-3K input, ~500-1K output  
+    **Total for 100 agents**: ~150K-400K tokens
+  </Step>
+  <Step title="Simulation Execution">
+    **N × R calls** — Each agent decides action each round.
+    
+    **Tokens per decision**: ~500-2K input, ~100-300 output  
+    **Total for 100 agents × 40 rounds**: ~2M-8M tokens
+  </Step>
+  <Step title="Report Generation">
+    **3-5 calls per section** — Report Agent retrieves data and writes analysis.
+    
+    **Tokens per section**: ~3K-8K input, ~1K-2K output  
+    **Total for 5 sections**: ~70K-150K tokens
+  </Step>
+</Steps>
+
+### Cost Estimation
+
+<Info>
+**Example Scenario**: 100 agents, 40 simulation rounds, 5-section report
+</Info>
+
+**Using Alibaba Qwen-plus** (¥0.004/1K input, ¥0.012/1K output):
+
+| Stage | Input Tokens | Output Tokens | Cost (¥) |
+|-------|-------------|---------------|----------|
+| Ontology | 3,000 | 1,000 | ¥0.02 |
+| Profiles (100) | 200,000 | 75,000 | ¥1.70 |
+| Simulation (100×40) | 4,000,000 | 600,000 | ¥23.20 |
+| Report | 30,000 | 10,000 | ¥0.24 |
+| **Total** | **4,233,000** | **686,000** | **¥25.16** |
+
+**Using OpenAI GPT-4o-mini** ($0.15/1M input, $0.60/1M output):
+
+| Stage | Input Tokens | Output Tokens | Cost ($) |
+|-------|-------------|---------------|----------|
+| Ontology | 3,000 | 1,000 | $0.001 |
+| Profiles (100) | 200,000 | 75,000 | $0.075 |
+| Simulation (100×40) | 4,000,000 | 600,000 | $0.96 |
+| Report | 30,000 | 10,000 | $0.010 |
+| **Total** | **4,233,000** | **686,000** | **$1.05** |
+
+<Warning>
+The **simulation execution** stage consumes 90%+ of total tokens. Optimize here first.
+</Warning>
+
+### Cost Reduction Strategies
+
+<Accordion title="1. Reduce Agent Count">
+  Fewer agents = proportionally fewer LLM calls.
+  
+  **Impact**: Linear reduction in simulation costs.
+  
+  ```bash
+  # Instead of 100 agents
+  50 agents × 40 rounds = 2,000 decisions ✅ 50% cost reduction
+  
+  # Or cluster similar entities
+  "Student Group" instead of 20 individual students
+  ```
+</Accordion>
+
+<Accordion title="2. Limit Simulation Rounds">
+  Start with shorter simulations for testing.
+  
+  **Recommended for testing**: 10-20 rounds (~5-10 simulated hours)
+  **Production**: 40-60 rounds for most scenarios
+  **Full-scale**: 144 rounds only when necessary
+  
+  ```bash
+  # Set via API
+  POST /api/simulations/start
+  {
+    "simulation_id": "...",
+    "max_rounds": 20  # Override config default
+  }
+  ```
+</Accordion>
+
+<Accordion title="3. Use Cheaper/Faster Models">
+  Not all stages need powerful models.
+  
+  **Strategy**: Use different models for different stages:
+  - **Simulation decisions**: Fast, cheap model (qwen-plus, gpt-4o-mini)
+  - **Profile generation**: Mid-tier model (qwen-plus)
+  - **Report generation**: High-quality model (gpt-4o, qwen-max)
+  
+  **Implementation**: Set up LLM_BOOST for simulation:
+  ```bash
+  # .env
+  LLM_API_KEY=sk-...           # Main model (gpt-4o)
+  LLM_BOOST_API_KEY=sk-...     # Fast model for simulation
+  LLM_BOOST_BASE_URL=https://...
+  LLM_BOOST_MODEL_NAME=gpt-4o-mini
+  ```
+</Accordion>
+
+<Accordion title="4. Disable Rich Profiles for Testing">
+  Skip LLM-generated personas during development.
+  
+  ```bash
+  POST /api/simulations/prepare
+  {
+    "use_llm": false  # Use rule-based profiles (free)
+  }
+  ```
+  
+  **Trade-off**: Less realistic agent behavior, but zero profile generation cost.
+</Accordion>
+
+<Accordion title="5. Use Local/Self-Hosted LLM">
+  Eliminate per-token costs entirely.
+  
+  **Options**:
+  - [Ollama](https://ollama.ai/) (local, free)
+  - [vLLM](https://github.com/vllm-project/vllm) (self-hosted)
+  - [LM Studio](https://lmstudio.ai/) (local GUI)
+  
+  **Setup**:
+  ```bash
+  # Run Ollama locally
+  ollama serve
+  ollama pull llama3
+  
+  # Configure MiroFish
+  LLM_API_KEY=dummy
+  LLM_BASE_URL=http://localhost:11434/v1
+  LLM_MODEL_NAME=llama3
+  ```
+  
+  **Trade-off**: Requires GPU hardware, slower inference, may reduce quality.
+</Accordion>
+
+---
+
+## Zep Cloud Usage Optimization
+
+### Zep Consumption Points
+
+MiroFish uses Zep Cloud for:
+
+1. **Graph Construction**: Episodes (text chunks) processed → nodes/edges extracted
+2. **Search Queries**: Report Agent tools call Zep search APIs
+3. **Graph Storage**: Node/edge count affects quota
+
+### Free Tier Limits
+
+Zep Cloud free tier (as of 2024):
+- **5,000 episodes/month**
+- **Unlimited graphs** (but limited total storage)
+- **Search requests**: Generous limit
+
+<Note>
+A typical MiroFish workflow uses ~50-200 episodes (chunks) per graph. You can build **25-100 graphs/month** on free tier.
+</Note>
+
+### Reducing Zep Costs
+
+<Accordion title="Optimize Chunk Size">
+  Larger chunks = fewer episodes = lower usage.
+  
+  ```bash
+  POST /api/build-graph
+  {
+    "chunk_size": 800,      # Increase from default 500
+    "chunk_overlap": 50     # Keep overlap small
+  }
+  ```
+  
+  **Trade-off**: Very large chunks (>1000) may reduce extraction quality.
+</Accordion>
+
+<Accordion title="Reuse Graphs Across Simulations">
+  One graph can support multiple simulation runs.
+  
+  **Workflow**:
+  1. Build graph once (`/build-graph`) → `graph_id`
+  2. Prepare simulation 1 with `graph_id`
+  3. Run simulation 1
+  4. Prepare simulation 2 with **same** `graph_id` but different parameters
+  5. Run simulation 2 (no additional Zep episodes consumed)
+</Accordion>
+
+<Accordion title="Delete Old Graphs">
+  Clean up unused graphs to free quota.
+  
+  ```bash
+  DELETE /api/graphs/{graph_id}
+  ```
+  
+  Or via Zep Cloud dashboard: [app.getzep.com](https://app.getzep.com/)
+</Accordion>
+
+---
+
+## Memory Requirements
+
+### Memory Consumption by Component
+
+| Component | Memory Usage | Scalability |
+|-----------|--------------|-------------|
+| **Backend API** (Flask) | ~200MB base | + ~5MB per concurrent request |
+| **Frontend** (Next.js) | ~150MB base | Low impact |
+| **Simulation Process** | ~100MB base | + ~2-5MB per agent |
+| **OASIS Platform Databases** | ~50MB | + ~10MB per 1000 actions |
+| **Report Agent** | ~200MB | + ~50MB during generation |
+
+### Scaling Recommendations
+
+<CardGroup cols={2}>
+  <Card title="Small Simulation (≤50 agents)" icon="circle">
+    **Minimum**: 2GB RAM  
+    **Recommended**: 4GB RAM
+    
+    Suitable for laptops and small VPS instances.
+  </Card>
+  <Card title="Medium Simulation (50-100 agents)" icon="circle-half-stroke">
+    **Minimum**: 4GB RAM  
+    **Recommended**: 8GB RAM
+    
+    Standard desktop or cloud VM.
+  </Card>
+  <Card title="Large Simulation (100-200 agents)" icon="circle-dot">
+    **Minimum**: 8GB RAM  
+    **Recommended**: 16GB RAM
+    
+    Requires dedicated server or high-memory VM.
+  </Card>
+  <Card title="Massive Simulation (200+ agents)" icon="circle-radiation">
+    **Minimum**: 16GB+ RAM  
+    **Recommended**: 32GB+ RAM
+    
+    Consider distributed architecture (future feature).
+  </Card>
+</CardGroup>
+
+### Memory Optimization
+
+<Accordion title="Docker Resource Limits">
+  Prevent OOM kills by allocating sufficient memory:
+  
+  ```yaml
+  # docker-compose.yml
+  services:
+    backend:
+      deploy:
+        resources:
+          limits:
+            memory: 8G      # Adjust based on agent count
+          reservations:
+            memory: 2G
+  ```
+</Accordion>
+
+<Accordion title="Reduce Action Logging">
+  Action logs grow over time. For very long simulations, consider periodic cleanup:
+  
+  ```bash
+  # Keep only last 1000 actions
+  tail -n 1000 backend/uploads/simulations/{id}/twitter/actions.jsonl > temp
+  mv temp backend/uploads/simulations/{id}/twitter/actions.jsonl
+  ```
+</Accordion>
+
+<Accordion title="Database Optimization">
+  OASIS stores posts in SQLite. For large simulations, enable WAL mode:
+  
+  ```bash
+  sqlite3 backend/uploads/simulations/{id}/twitter_simulation.db \
+    "PRAGMA journal_mode=WAL;"
+  ```
+</Accordion>
+
+---
+
+## Simulation Performance Factors
+
+### Round Duration
+
+Each simulation round involves:
+
+1. **Agent decision-making**: N parallel LLM calls (where N = agent count)
+2. **Action execution**: Database writes, state updates
+3. **Memory updates**: Zep graph updates (if enabled)
+
+**Typical timings** (100 agents, qwen-plus, good network):
+
+- **Agent decisions** (parallel): 3-10 seconds
+- **Action execution**: Less than 1 second
+- **Memory updates** (optional): 2-5 seconds per round
+- **Total per round**: 5-15 seconds
+
+**For 40 rounds**: 3-10 minutes total simulation time.
+
+### Bottlenecks and Solutions
+
+<Accordion title="Slow LLM Provider">
+  **Symptom**: Rounds take 30+ seconds each.
+  
+  **Solutions**:
+  - Switch to faster model (gpt-4o-mini is very fast)
+  - Use local LLM with GPU acceleration
+  - Increase provider API rate limits
+</Accordion>
+
+<Accordion title="Network Latency">
+  **Symptom**: Delays between backend and LLM API.
+  
+  **Solutions**:
+  - Deploy MiroFish closer to LLM provider (same region)
+  - Use CDN-accelerated endpoints (some Chinese providers offer this)
+  - Enable HTTP/2 connection pooling (already enabled in LLMClient)
+</Accordion>
+
+<Accordion title="Concurrent Request Limits">
+  **Symptom**: "Rate limit exceeded" errors during simulation.
+  
+  **Solutions**:
+  - Upgrade LLM provider plan for higher rate limits
+  - Reduce agent count to decrease concurrency
+  - Implement request queuing (future MiroFish feature)
+</Accordion>
+
+### Monitoring Simulation Progress
+
+Track real-time performance:
+
+```bash
+# Watch simulation logs
+tail -f backend/uploads/simulations/{id}/simulation.log
+
+# Count completed actions
+wc -l backend/uploads/simulations/{id}/twitter/actions.jsonl
+wc -l backend/uploads/simulations/{id}/reddit/actions.jsonl
+
+# Check current round
+grep "round_end" backend/uploads/simulations/{id}/twitter/actions.jsonl | tail -1
+```
+
+---
+
+## Report Generation Performance
+
+### Report Agent Efficiency
+
+Report generation involves:
+
+1. **Planning phase**: 1 LLM call to create outline (~5-10 seconds)
+2. **Section generation**: 3-5 tool calls + 1 final LLM call per section
+3. **Tool execution**: Zep searches (1-3 seconds each)
+
+**Typical timings** (5 sections):
+
+- **Planning**: 10 seconds
+- **Section 1**: 30-60 seconds (3 tool calls + writing)
+- **Section 2-5**: 30-60 seconds each
+- **Total**: 3-6 minutes
+
+### Optimization
+
+<Accordion title="Reduce Section Count">
+  Default is 2-5 sections. Fewer sections = faster reports.
+  
+  Edit `PLAN_SYSTEM_PROMPT` in `backend/app/services/report_agent.py`:
+  ```python
+  # Change from "最少2个章节,最多5个章节"
+  # To "最少2个章节,最多3个章节"
+  ```
+</Accordion>
+
+<Accordion title="Limit Tool Calls Per Section">
+  Default is 5 calls max per section.
+  
+  ```bash
+  # .env
+  REPORT_AGENT_MAX_TOOL_CALLS=3  # Reduce from 5
+  ```
+  
+  **Trade-off**: Less comprehensive analysis.
+</Accordion>
+
+<Accordion title="Use Faster Search">
+  `quick_search` is faster than `insight_forge` and `panorama_search`.
+  
+  Encourage Agent to prefer it in prompts (advanced customization).
+</Accordion>
+
+---
+
+## Production Deployment Best Practices
+
+### Reliability
+
+<Steps>
+  <Step title="Use Process Manager">
+    Don't rely on `npm run dev`. Use production-grade process managers:
+    
+    **PM2** (Node.js):
+    ```bash
+    npm install -g pm2
+    cd frontend
+    npm run build
+    pm2 start npm --name "mirofish-frontend" -- start
+    ```
+    
+    **Gunicorn** (Python):
+    ```bash
+    cd backend
+    pip install gunicorn
+    gunicorn -w 4 -b 0.0.0.0:5001 app:app
+    ```
+  </Step>
+  <Step title="Set Up Reverse Proxy">
+    Use Nginx to handle SSL and load balancing:
+    
+    ```nginx
+    server {
+        listen 80;
+        server_name mirofish.yourcompany.com;
+        
+        location / {
+            proxy_pass http://localhost:3000;  # Frontend
+        }
+        
+        location /api {
+            proxy_pass http://localhost:5001;  # Backend
+            proxy_read_timeout 300s;  # Long simulations
+        }
+    }
+    ```
+  </Step>
+  <Step title="Enable Logging">
+    Rotate logs to prevent disk fill:
+    
+    ```python
+    # backend/app/utils/logger.py
+    from logging.handlers import RotatingFileHandler
+    
+    handler = RotatingFileHandler(
+        'logs/mirofish.log',
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5
+    )
+    ```
+  </Step>
+  <Step title="Set Up Health Checks">
+    Monitor service availability:
+    
+    ```bash
+    # Add to crontab
+    */5 * * * * curl -f http://localhost:5001/api/health || systemctl restart mirofish-backend
+    ```
+  </Step>
+</Steps>
+
+### Security
+
+<Warning>
+MiroFish is a research tool and doesn't include authentication by default. Secure it before public deployment.
+</Warning>
+
+<Accordion title="API Key Authentication">
+  Add middleware to protect endpoints:
+  
+  ```python
+  # backend/app/middleware/auth.py
+  from functools import wraps
+  from flask import request, jsonify
+  
+  def require_api_key(f):
+      @wraps(f)
+      def decorated(*args, **kwargs):
+          key = request.headers.get('X-API-Key')
+          if key != os.environ.get('MIROFISH_API_KEY'):
+              return jsonify({'error': 'Unauthorized'}), 401
+          return f(*args, **kwargs)
+      return decorated
+  ```
+</Accordion>
+
+<Accordion title="Rate Limiting">
+  Prevent abuse with Flask-Limiter:
+  
+  ```bash
+  pip install Flask-Limiter
+  ```
+  
+  ```python
+  from flask_limiter import Limiter
+  
+  limiter = Limiter(
+      app,
+      key_func=lambda: request.remote_addr,
+      default_limits=["100 per hour"]
+  )
+  ```
+</Accordion>
+
+<Accordion title="Secure API Keys">
+  Never commit `.env` to git. Use secrets management:
+  
+  - **Docker**: Use Docker secrets
+  - **Kubernetes**: Use K8s secrets
+  - **Cloud**: Use provider secret managers (AWS Secrets Manager, Azure Key Vault)
+</Accordion>
+
+### Scaling Strategies
+
+<CardGroup cols={2}>
+  <Card title="Horizontal Scaling (Future)" icon="arrows-left-right">
+    MiroFish doesn't yet support multi-instance deployment, but you can:
+    - Run multiple independent instances
+    - Use separate databases per instance
+    - Load balance via Nginx
+  </Card>
+  <Card title="Vertical Scaling" icon="arrows-up-down">
+    Simplest approach:
+    - Increase RAM for more agents
+    - Faster CPU for quicker LLM inference (if using local models)
+    - SSD for faster database I/O
+  </Card>
+  <Card title="Async Simulation" icon="clock">
+    Already implemented:
+    - Simulations run in background processes
+    - Non-blocking API responses
+    - Polling-based status updates
+  </Card>
+  <Card title="Caching" icon="database">
+    Optimize repeated operations:
+    - Cache graph queries (Redis)
+    - Reuse agent profiles across simulations
+    - Cache Report Agent tool results (future)
+  </Card>
+</CardGroup>
+
+---
+
+## Monitoring and Metrics
+
+### Key Metrics to Track
+
+<Accordion title="API Usage">
+  **What to monitor**:
+  - Total LLM tokens consumed (input + output)
+  - Zep API calls (graph searches, episode processing)
+  - Cost per simulation
+  
+  **How**:
+  - Parse backend logs for token counts
+  - Use provider dashboards (OpenAI, Alibaba, Zep)
+  - Implement custom metrics in `LLMClient`
+</Accordion>
+
+<Accordion title="Simulation Health">
+  **What to monitor**:
+  - Success/failure rate
+  - Average rounds per simulation
+  - Average actions per agent
+  - Time to completion
+  
+  **How**:
+  - Parse `run_state.json` files
+  - Aggregate `actions.jsonl` statistics
+  - Build custom dashboard (Grafana, etc.)
+</Accordion>
+
+<Accordion title="System Resources">
+  **What to monitor**:
+  - Memory usage (per process)
+  - CPU utilization
+  - Disk I/O (SQLite databases)
+  - Network bandwidth (LLM API calls)
+  
+  **How**:
+  - Use `htop`, `docker stats`
+  - Prometheus + Grafana for production
+  - Cloud provider monitoring (CloudWatch, Azure Monitor)
+</Accordion>
+
+### Example Monitoring Script
+
+```bash
+#!/bin/bash
+# monitor_simulation.sh
+
+SIM_ID=$1
+BASE_DIR="backend/uploads/simulations/$SIM_ID"
+
+while true; do
+    # Count completed actions
+    TWITTER_ACTIONS=$(wc -l < "$BASE_DIR/twitter/actions.jsonl" 2>/dev/null || echo 0)
+    REDDIT_ACTIONS=$(wc -l < "$BASE_DIR/reddit/actions.jsonl" 2>/dev/null || echo 0)
+    
+    # Get current round
+    CURRENT_ROUND=$(grep -o '"round":[0-9]*' "$BASE_DIR/twitter/actions.jsonl" 2>/dev/null | tail -1 | cut -d: -f2)
+    
+    echo "[$(date)] Round: $CURRENT_ROUND | Twitter: $TWITTER_ACTIONS actions | Reddit: $REDDIT_ACTIONS actions"
+    
+    sleep 10
+done
+```
+
+---
+
+## Troubleshooting Performance Issues
+
+<CardGroup cols={2}>
+  <Card title="Simulation Too Slow" icon="turtle">
+    **Causes**: Too many agents, slow LLM, network latency
+    
+    **Solutions**:
+    - Reduce agent count
+    - Use faster model (gpt-4o-mini)
+    - Deploy closer to LLM provider
+  </Card>
+  <Card title="Out of Memory" icon="memory">
+    **Causes**: Too many agents, long simulation, memory leaks
+    
+    **Solutions**:
+    - Increase RAM allocation
+    - Reduce agent count
+    - Restart backend between simulations
+  </Card>
+  <Card title="High LLM Costs" icon="dollar-sign">
+    **Causes**: Too many rounds, expensive model, large agent count
+    
+    **Solutions**:
+    - Limit rounds (max_rounds parameter)
+    - Use cheaper model
+    - Test with fewer agents first
+  </Card>
+  <Card title="Report Takes Forever" icon="hourglass">
+    **Causes**: Too many tool calls, slow Zep searches, long sections
+    
+    **Solutions**:
+    - Reduce REPORT_AGENT_MAX_TOOL_CALLS
+    - Limit section count in prompts
+    - Use faster search tools
+  </Card>
+</CardGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Troubleshooting Guide" icon="circle-question" href="/advanced/troubleshooting">
+    Solve performance-related errors and issues
+  </Card>
+  <Card title="Customization" icon="wrench" href="/advanced/customization">
+    Customize simulation parameters for your needs
+  </Card>
+  <Card title="Use Cases" icon="lightbulb" href="/advanced/use-cases">
+    See examples of optimized real-world simulations
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all performance-related API parameters
+  </Card>
+</CardGroup>

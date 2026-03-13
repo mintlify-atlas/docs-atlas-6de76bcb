@@ -1,0 +1,439 @@
+---
+title: Interview Agents
+description: Interview simulation agents after completion
+---
+
+## Interview Agent
+
+<Note>
+  Interview individual agents from a completed simulation to understand their perspectives, experiences, and reasoning.
+</Note>
+
+```bash
+POST /api/simulation/interview
+```
+
+### Request Body (JSON)
+
+<ParamField body="simulation_id" type="string" required>
+  Simulation identifier
+</ParamField>
+
+<ParamField body="agent_username" type="string" required>
+  Username of the agent to interview (from agent profiles)
+</ParamField>
+
+<ParamField body="question" type="string" required>
+  Question to ask the agent
+</ParamField>
+
+<ParamField body="platform" type="string" default="reddit">
+  Platform the agent belongs to: `reddit` or `twitter`
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Interview response">
+    <ResponseField name="simulation_id" type="string">
+      Simulation identifier
+    </ResponseField>
+    <ResponseField name="agent_username" type="string">
+      Agent username
+    </ResponseField>
+    <ResponseField name="platform" type="string">
+      Platform (reddit or twitter)
+    </ResponseField>
+    <ResponseField name="question" type="string">
+      Original question
+    </ResponseField>
+    <ResponseField name="response" type="string">
+      Agent's response
+    </ResponseField>
+    <ResponseField name="agent_context" type="object">
+      Agent's profile information and simulation context
+    </ResponseField>
+    <ResponseField name="timestamp" type="string">
+      ISO 8601 timestamp of interview
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:5001/api/simulation/interview \
+  -H "Content-Type: application/json" \
+  -d '{
+    "simulation_id": "sim_xyz789",
+    "agent_username": "alex_chen_cs",
+    "question": "How do you feel about the new campus policy?",
+    "platform": "reddit"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'http://localhost:5001/api/simulation/interview',
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      simulation_id: 'sim_xyz789',
+      agent_username: 'alex_chen_cs',
+      question: 'How do you feel about the new campus policy?',
+      platform: 'reddit'
+    })
+  }
+);
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:5001/api/simulation/interview',
+    json={
+        'simulation_id': 'sim_xyz789',
+        'agent_username': 'alex_chen_cs',
+        'question': 'How do you feel about the new campus policy?',
+        'platform': 'reddit'
+    }
+)
+data = response.json()
+```
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_xyz789",
+    "agent_username": "alex_chen_cs",
+    "platform": "reddit",
+    "question": "How do you feel about the new campus policy?",
+    "response": "As a senior CS major, I'm really concerned about this policy. The mandatory attendance requirement doesn't make sense for upper-level courses where we're working on independent projects. I understand the reasoning for freshmen courses, but applying it across the board feels like the administration doesn't trust us to manage our own learning. I've been discussing this with Professor Smith and other students in the robotics club, and we're all worried it will impact our ability to work on research projects that require flexible scheduling. I actually made several posts about this on r/university during the simulation, and got a lot of agreement from other seniors.",
+    "agent_context": {
+      "bio": "CS senior passionate about AI and robotics. Member of university robotics club.",
+      "traits": "analytical, curious, collaborative",
+      "interests": ["artificial intelligence", "robotics", "algorithms"],
+      "activity_summary": {
+        "total_posts": 8,
+        "total_comments": 24,
+        "topics_engaged": ["campus_policy", "academic_freedom", "research_projects"],
+        "sentiment": "concerned"
+      }
+    },
+    "timestamp": "2025-03-13T15:30:00Z"
+  }
+}
+```
+
+## Interview Features
+
+### Agent Memory
+
+Agents respond based on:
+
+<ResponseField name="Profile" type="memory">
+  Original agent profile (bio, traits, interests)
+</ResponseField>
+
+<ResponseField name="Simulation Activity" type="memory">
+  What the agent posted, commented, and engaged with during simulation
+</ResponseField>
+
+<ResponseField name="Relationships" type="memory">
+  Interactions with other agents and topics
+</ResponseField>
+
+<ResponseField name="Sentiment" type="memory">
+  Agent's emotional stance based on simulation behavior
+</ResponseField>
+
+### Natural Responses
+
+The interview system:
+- Uses the agent's LLM-generated personality
+- References specific simulation events
+- Maintains consistency with simulation behavior
+- Provides contextually relevant answers
+
+## Question Types
+
+### Opinion Questions
+
+Ask about the agent's views:
+
+<CodeGroup>
+```json Policy Opinion
+{
+  "question": "What do you think about the new attendance policy?"
+}
+```
+
+```json Comparison
+{
+  "question": "How does this policy compare to what other universities are doing?"
+}
+```
+</CodeGroup>
+
+### Experience Questions
+
+Ask about simulation experiences:
+
+<CodeGroup>
+```json Activity Recall
+{
+  "question": "What posts or discussions did you participate in during the simulation?"
+}
+```
+
+```json Interaction
+{
+  "question": "Did you interact with other students about this issue? What did they say?"
+}
+```
+</CodeGroup>
+
+### Reasoning Questions
+
+Understand agent logic:
+
+<CodeGroup>
+```json Motivation
+{
+  "question": "Why did you take the stance you did on this issue?"
+}
+```
+
+```json Future Outlook
+{
+  "question": "What do you think will happen if this policy is implemented?"
+}
+```
+</CodeGroup>
+
+## Best Practices
+
+### Clear Questions
+
+<Warning>
+  Ask specific, focused questions for best results. Vague questions may yield generic responses.
+</Warning>
+
+<CodeGroup>
+```text Good Example
+"How did the new attendance policy affect your plans for senior projects?"
+```
+
+```text Poor Example
+"What do you think about stuff?"
+```
+</CodeGroup>
+
+### Contextual Questions
+
+Reference simulation context:
+
+```json
+{
+  "question": "I noticed you posted several times about research flexibility. Can you explain why that's important to you as a CS senior?"
+}
+```
+
+### Follow-up Questions
+
+Build on previous responses:
+
+1. First question: "How do you feel about the new policy?"
+2. Follow-up: "You mentioned concerns about research projects. Can you elaborate on specific impacts?"
+3. Deep dive: "What alternatives would you suggest to the administration?"
+
+## Multi-Agent Interviews
+
+Interview multiple agents to understand diverse perspectives:
+
+```javascript
+const agents = ['alex_chen_cs', 'maria_bio_student', 'prof_smith'];
+const question = 'What are your thoughts on the attendance policy?';
+
+for (const agent of agents) {
+  const response = await fetch(
+    'http://localhost:5001/api/simulation/interview',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        simulation_id: 'sim_xyz789',
+        agent_username: agent,
+        question: question,
+        platform: 'reddit'
+      })
+    }
+  );
+  const data = await response.json();
+  console.log(`${agent}: ${data.data.response}`);
+}
+```
+
+## Interview vs Report Chat
+
+### Interview Agents (This Endpoint)
+
+- Talk to **individual agents**
+- Get **agent-specific perspectives**
+- Based on **agent personality and activity**
+- Answers **as the agent** (first-person)
+
+### Report Chat (`/api/report/chat`)
+
+- Talk to **Report Agent** (AI analyst)
+- Get **analytical insights** across all agents
+- Based on **aggregate simulation data**
+- Answers **about the simulation** (third-person analysis)
+
+## Platform Considerations
+
+### Reddit Agents
+
+- More detailed, thoughtful responses
+- Reference specific posts and comments
+- Discuss thread conversations
+
+### Twitter Agents
+
+- Briefer responses
+- Reference tweets and retweets
+- Faster-paced interaction style
+
+## Error Responses
+
+<CodeGroup>
+```json Missing Parameters
+{
+  "success": false,
+  "error": "请提供 simulation_id, agent_username 和 question"
+}
+```
+
+```json Simulation Not Found
+{
+  "success": false,
+  "error": "模拟不存在: sim_invalid"
+}
+```
+
+```json Agent Not Found
+{
+  "success": false,
+  "error": "找不到代理: alex_invalid"
+}
+```
+
+```json Simulation Not Completed
+{
+  "success": false,
+  "error": "模拟尚未完成，请等待模拟结束后再进行采访"
+}
+```
+
+```json Platform Mismatch
+{
+  "success": false,
+  "error": "代理 alex_chen_cs 在 twitter 平台上不存在"
+}
+```
+</CodeGroup>
+
+## Use Cases
+
+### Qualitative Research
+
+Gather detailed perspectives:
+
+```json
+{
+  "question": "Walk me through your decision-making process when you decided to post about the policy."
+}
+```
+
+### Sentiment Analysis Verification
+
+Validate quantitative findings:
+
+```json
+{
+  "question": "Our analysis shows you were concerned about the policy. What specific aspects worried you most?"
+}
+```
+
+### Stakeholder Understanding
+
+Understand different constituencies:
+
+```json
+{
+  "question": "As a professor, how does this policy affect your teaching approach?"
+}
+```
+
+### Policy Testing
+
+Explore alternative scenarios:
+
+```json
+{
+  "question": "If the policy only applied to freshman courses, would your opinion change?"
+}
+```
+
+## Interview Logging
+
+Interviews are automatically logged:
+
+```json
+{
+  "interview_id": "interview_123abc",
+  "simulation_id": "sim_xyz789",
+  "agent": "alex_chen_cs",
+  "question": "...",
+  "response": "...",
+  "timestamp": "2025-03-13T15:30:00Z"
+}
+```
+
+Retrieve interview history from simulation logs.
+
+## Performance
+
+<Note>
+  Interview responses typically take 2-5 seconds to generate, depending on LLM provider and question complexity.
+</Note>
+
+### Optimization Tips
+
+1. **Batch interviews:** Interview multiple agents in parallel
+2. **Cache responses:** Store commonly asked questions
+3. **Shorter questions:** Reduce LLM processing time
+4. **Limit context:** Focus on specific simulation aspects
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Generate Report" icon="file-alt" href="/api/report/generate">
+    Create comprehensive simulation reports
+  </Card>
+  <Card title="Chat with Report Agent" icon="comment-dots" href="/api/report/chat">
+    Analyze simulation data with AI assistant
+  </Card>
+</CardGroup>

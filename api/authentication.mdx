@@ -1,0 +1,187 @@
+---
+title: Authentication
+description: API authentication and security
+---
+
+## Current Authentication
+
+<Note>
+  **Local Deployment:** No authentication is currently required for local deployment. The API is designed for single-user local development and testing.
+</Note>
+
+For local deployment (http://localhost:5001), all API endpoints are publicly accessible without authentication tokens.
+
+## CORS Configuration
+
+The MiroFish backend is configured to accept requests from frontend applications. By default, the API allows:
+
+- **Origins:** `http://localhost:3000` (frontend development server)
+- **Methods:** GET, POST, PUT, DELETE, OPTIONS
+- **Headers:** Content-Type, Authorization
+
+### CORS Example
+
+```javascript
+fetch('http://localhost:5001/api/graph/project/proj_123', {
+  method: 'GET',
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+  .then(response => response.json())
+  .then(data => console.log(data));
+```
+
+## Future Authentication Plans
+
+<Warning>
+  Future production versions will implement authentication. Planned features include:
+</Warning>
+
+### API Key Authentication
+
+API keys will be required for production deployments:
+
+```bash
+curl -X POST http://api.mirofish.ai/api/graph/ontology/generate \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "files=@document.pdf"
+```
+
+### JWT Token Authentication
+
+JSON Web Tokens (JWT) for user-based authentication:
+
+```bash
+# Login to get token
+curl -X POST http://api.mirofish.ai/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "user@example.com",
+    "password": "your_password"
+  }'
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expires_at": "2025-12-25T10:00:00Z"
+  }
+}
+```
+
+### OAuth 2.0 Support
+
+Integration with popular OAuth providers:
+
+- GitHub OAuth
+- Google OAuth
+- Microsoft Azure AD
+
+## Security Best Practices
+
+### Current Development Environment
+
+<CodeGroup>
+```bash Environment Variables
+# .env file
+ZEP_API_KEY=your_zep_api_key
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key
+```
+
+```bash Secure Configuration
+# Never commit sensitive keys to version control
+echo ".env" >> .gitignore
+
+# Use environment variables
+export ZEP_API_KEY="your_key"
+```
+</CodeGroup>
+
+### Production Recommendations
+
+When deploying MiroFish in production:
+
+1. **Enable HTTPS:** Use SSL/TLS certificates for encrypted connections
+2. **API Keys:** Implement API key rotation and expiration
+3. **Rate Limiting:** Add rate limiting to prevent abuse
+4. **Input Validation:** Validate all user inputs on the server
+5. **Audit Logging:** Log all API access for security monitoring
+
+## Network Security
+
+### Firewall Configuration
+
+For local development:
+```bash
+# Backend API (Flask)
+Port 5001: http://localhost:5001
+
+# Frontend (Next.js)
+Port 3000: http://localhost:3000
+```
+
+### Deployment Security
+
+<Warning>
+  Do not expose port 5001 directly to the internet in production. Use a reverse proxy (nginx, Apache) with SSL termination.
+</Warning>
+
+Example nginx configuration:
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name api.yourdomain.com;
+
+  ssl_certificate /path/to/cert.pem;
+  ssl_certificate_key /path/to/key.pem;
+
+  location /api/ {
+    proxy_pass http://localhost:5001/api/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+  }
+}
+```
+
+## API Access Patterns
+
+### Current (No Auth)
+
+```bash
+curl http://localhost:5001/api/graph/project/proj_123
+```
+
+### Future (With Auth)
+
+```bash
+curl http://api.mirofish.ai/api/graph/project/proj_123 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Error Responses
+
+When authentication is enabled, unauthorized requests will return:
+
+```json
+{
+  "success": false,
+  "error": "Unauthorized: Invalid or missing API key",
+  "code": "AUTH_REQUIRED"
+}
+```
+
+HTTP Status: `401 Unauthorized`
+
+## Questions?
+
+For security concerns or questions about authentication:
+
+- Review the [API Overview](/api/overview) for general API information
+- Check the [GitHub repository](https://github.com/yourusername/mirofish) for updates
+- Contact the development team for enterprise deployment options

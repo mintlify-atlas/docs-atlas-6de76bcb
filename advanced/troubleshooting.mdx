@@ -1,0 +1,775 @@
+---
+title: 'Troubleshooting'
+description: 'Solutions to common issues with MiroFish setup, simulation, and deployment'
+---
+
+## Overview
+
+This guide covers common problems you may encounter when installing, configuring, or running MiroFish simulations, along with tested solutions.
+
+<CardGroup cols={2}>
+  <Card title="Installation Issues" icon="download">
+    Dependency conflicts, version mismatches, and environment setup problems
+  </Card>
+  <Card title="API Configuration" icon="key">
+    LLM and Zep Cloud API key errors and connection issues
+  </Card>
+  <Card title="Simulation Failures" icon="circle-exclamation">
+    Graph construction errors, simulation crashes, and data issues
+  </Card>
+  <Card title="Performance Problems" icon="gauge">
+    Memory issues, slow simulations, and resource optimization
+  </Card>
+</CardGroup>
+
+---
+
+## Installation Problems
+
+### Python Version Incompatibility
+
+**Error Message**:
+```
+Python version 3.13.x is not supported
+Requires Python >=3.11, <=3.12
+```
+
+**Solution**:
+
+MiroFish requires Python 3.11 or 3.12 specifically (not 3.13+).
+
+<Steps>
+  <Step title="Check Current Version">
+    ```bash
+    python --version
+    # or
+    python3 --version
+    ```
+  </Step>
+  <Step title="Install Compatible Version">
+    **macOS (Homebrew)**:
+    ```bash
+    brew install python@3.12
+    ```
+    
+    **Ubuntu/Debian**:
+    ```bash
+    sudo apt update
+    sudo apt install python3.12 python3.12-venv
+    ```
+    
+    **Windows**:
+    Download from [python.org](https://www.python.org/downloads/) and install Python 3.12.x
+  </Step>
+  <Step title="Create Virtual Environment with Correct Version">
+    ```bash
+    python3.12 -m venv .venv
+    source .venv/bin/activate  # Windows: .venv\Scripts\activate
+    ```
+  </Step>
+</Steps>
+
+### Node.js Version Too Old
+
+**Error Message**:
+```
+node: engine "node" is incompatible with this module
+Expected version ">=18.0.0"
+```
+
+**Solution**:
+
+Install Node.js 18+ using [nvm](https://github.com/nvm-sh/nvm) (recommended):
+
+```bash
+# Install nvm (macOS/Linux)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+
+# Install Node 18
+nvm install 18
+nvm use 18
+
+# Verify
+node -v  # Should show v18.x.x or higher
+```
+
+### `uv` Command Not Found
+
+**Error Message**:
+```
+bash: uv: command not found
+```
+
+**Solution**:
+
+Install the `uv` Python package manager:
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Or via pip
+pip install uv
+
+# Verify
+uv --version
+```
+
+### Dependency Installation Fails
+
+**Error Message**:
+```
+ERROR: Failed building wheel for <package>
+```
+
+**Common Causes & Solutions**:
+
+<Accordion title="Missing System Dependencies (Linux)">
+  Some Python packages require build tools:
+  
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get update
+  sudo apt-get install -y build-essential python3-dev
+  
+  # CentOS/RHEL
+  sudo yum groupinstall "Development Tools"
+  sudo yum install python3-devel
+  ```
+</Accordion>
+
+<Accordion title="Outdated pip/setuptools">
+  Update core Python tools:
+  
+  ```bash
+  pip install --upgrade pip setuptools wheel
+  ```
+</Accordion>
+
+<Accordion title="Network/Proxy Issues">
+  If behind a corporate firewall:
+  
+  ```bash
+  # Use a mirror (China)
+  pip install -i https://pypi.tuna.tsinghua.edu.cn/simple <package>
+  
+  # Configure proxy
+  export HTTP_PROXY=http://proxy.company.com:8080
+  export HTTPS_PROXY=http://proxy.company.com:8080
+  ```
+</Accordion>
+
+---
+
+## API Key Configuration Errors
+
+### LLM API Key Not Working
+
+**Error Message**:
+```
+AuthenticationError: Invalid API key
+OpenAI API returned 401
+```
+
+**Diagnosis**:
+
+<Steps>
+  <Step title="Verify .env File Location">
+    Ensure `.env` is in the **project root** (same level as `docker-compose.yml`):
+    ```bash
+    ls -la .env
+    # Should exist at MiroFish/.env
+    ```
+  </Step>
+  <Step title="Check Environment Variable Loading">
+    ```bash
+    # From backend directory
+    cd backend
+    source .venv/bin/activate
+    python -c "from app.config import Config; print(Config.LLM_API_KEY)"
+    # Should print your API key, not 'None'
+    ```
+  </Step>
+  <Step title="Test API Key Directly">
+    ```bash
+    curl https://dashscope.aliyuncs.com/compatible-mode/v1/models \
+      -H "Authorization: Bearer YOUR_API_KEY"
+    # Should return model list, not 401 error
+    ```
+  </Step>
+</Steps>
+
+**Solutions**:
+
+<Accordion title=".env File Format Issues">
+  Ensure no spaces around `=` and no quotes:
+  
+  ```bash
+  # ✅ Correct
+  LLM_API_KEY=sk-abc123...
+  
+  # ❌ Wrong
+  LLM_API_KEY = "sk-abc123..."
+  LLM_API_KEY='sk-abc123...'
+  ```
+</Accordion>
+
+<Accordion title="API Key Expired or Invalid">
+  Regenerate your API key:
+  
+  - **Alibaba Qwen**: [bailian.console.aliyun.com](https://bailian.console.aliyun.com/)
+  - **OpenAI**: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+</Accordion>
+
+<Accordion title="Wrong BASE_URL for Provider">
+  Match the base URL to your provider:
+  
+  ```bash
+  # Alibaba Qwen
+  LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+  
+  # OpenAI
+  LLM_BASE_URL=https://api.openai.com/v1
+  
+  # Azure OpenAI
+  LLM_BASE_URL=https://YOUR-RESOURCE.openai.azure.com/openai/deployments/YOUR-DEPLOYMENT
+  ```
+</Accordion>
+
+### Zep Cloud Connection Issues
+
+**Error Message**:
+```
+Zep API Error: 403 Forbidden
+Failed to create graph: Unauthorized
+```
+
+**Solutions**:
+
+<Steps>
+  <Step title="Verify Zep API Key">
+    Get your API key from [app.getzep.com](https://app.getzep.com/):
+    - Login → Settings → API Keys → Copy
+  </Step>
+  <Step title="Check Monthly Quota">
+    Free tier has limits. Check usage at [app.getzep.com](https://app.getzep.com/):
+    - Dashboard → Usage → Current month
+  </Step>
+  <Step title="Test Connection">
+    ```bash
+    cd backend
+    source .venv/bin/activate
+    python -c "
+    from zep_cloud.client import Zep
+    client = Zep(api_key='YOUR_ZEP_API_KEY')
+    print('Connected:', client)
+    "
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+If you exceed Zep's free tier quota, graph construction will fail silently. Upgrade your plan or wait for quota reset.
+</Warning>
+
+---
+
+## Graph Construction Errors
+
+### Ontology Generation Fails
+
+**Error Message**:
+```
+JSON decode error in ontology generation
+Expected JSON object, got string
+```
+
+**Cause**: LLM didn't return valid JSON despite `response_format={"type": "json_object"}`.
+
+**Solutions**:
+
+<Accordion title="Use a Better LLM Model">
+  Some models don't support JSON mode well. Recommended:
+  - ✅ `qwen-plus` (Alibaba)
+  - ✅ `gpt-4o-mini` or `gpt-4o` (OpenAI)
+  - ❌ Older models like `gpt-3.5-turbo` may fail
+</Accordion>
+
+<Accordion title="Check Seed Material Quality">
+  Ensure your uploaded file has clear, structured content:
+  - ✅ Well-formatted reports with clear entities and relationships
+  - ❌ Scanned PDFs with OCR errors
+  - ❌ Unstructured chat logs
+</Accordion>
+
+<Accordion title="Retry with Manual Ontology">
+  Create a custom ontology JSON:
+  
+  ```json
+  {
+    "entity_types": [
+      {
+        "name": "Person",
+        "description": "An individual person",
+        "attributes": [
+          {"name": "role", "description": "Their role or profession"}
+        ]
+      },
+      {
+        "name": "Organization",
+        "description": "A group or institution",
+        "attributes": []
+      }
+    ],
+    "edge_types": [
+      {
+        "name": "interacts_with",
+        "description": "Interaction between entities",
+        "source_targets": [
+          {"source": "Person", "target": "Person"},
+          {"source": "Person", "target": "Organization"}
+        ]
+      }
+    ]
+  }
+  ```
+  
+  Upload via `/api/ontology/upload` endpoint.
+</Accordion>
+
+### Graph Has Too Few Nodes
+
+**Symptom**: Graph built successfully but only has 5-10 nodes when you expected 50+.
+
+**Diagnosis**:
+
+<Steps>
+  <Step title="Check Text Processing">
+    Verify chunks were created correctly:
+    ```bash
+    cd backend
+    python -c "
+    from app.services.text_processor import TextProcessor
+    text = open('path/to/your/file.txt').read()
+    chunks = TextProcessor.split_text(text, 500, 50)
+    print(f'Created {len(chunks)} chunks')
+    "
+    ```
+  </Step>
+  <Step title="Review Episode Processing">
+    Check Zep processed all episodes:
+    - Login to [app.getzep.com](https://app.getzep.com/)
+    - Navigate to your graph
+    - Check episode count matches chunk count
+  </Step>
+</Steps>
+
+**Solutions**:
+
+- **Increase chunk size**: Larger chunks (800-1000 chars) may capture more entities per chunk
+- **Better ontology**: More specific entity types help Zep extract more nodes
+- **Richer seed material**: Ensure your source document has diverse entities
+
+### Reserved Name Conflicts
+
+**Error Message**:
+```
+Pydantic validation error: Field 'uuid' conflicts with reserved name
+```
+
+**Cause**: Zep reserves certain field names (`uuid`, `name`, `group_id`, `created_at`, etc.).
+
+**Solution**:
+
+MiroFish automatically prefixes reserved names with `entity_` during ontology upload. If you're manually creating ontology, avoid:
+
+```json
+{
+  "entity_types": [
+    {
+      "name": "Person",
+      "attributes": [
+        {"name": "uuid", "description": "..."} // ❌ Reserved!
+      ]
+    }
+  ]
+}
+```
+
+Use safe names instead:
+
+```json
+{"name": "entity_uuid", "description": "..."} // ✅ Safe
+```
+
+---
+
+## Simulation Failures
+
+### Simulation Starts But Immediately Stops
+
+**Symptom**: Status shows "running" for 1-2 seconds, then "failed".
+
+**Diagnosis**:
+
+Check simulation logs:
+
+```bash
+cat backend/uploads/simulations/YOUR_SIMULATION_ID/simulation.log
+```
+
+Common errors:
+
+<Accordion title="Profile File Not Found">
+  **Error**: `FileNotFoundError: reddit_profiles.json`
+  
+  **Cause**: Simulation was started before `/prepare` completed.
+  
+  **Solution**:
+  1. Wait for `/prepare` to finish (status = "completed")
+  2. Verify profile files exist:
+     ```bash
+     ls backend/uploads/simulations/YOUR_ID/reddit_profiles.json
+     ls backend/uploads/simulations/YOUR_ID/twitter_profiles.csv
+     ```
+</Accordion>
+
+<Accordion title="Invalid Agent Profiles">
+  **Error**: `KeyError: 'user_id'` or `Invalid persona format`
+  
+  **Cause**: Profile generation failed and created malformed JSON/CSV.
+  
+  **Solution**:
+  1. Delete `run_state.json`
+  2. Re-run `/prepare` with `use_llm=false` for simpler profiles
+  3. Or manually fix profile files
+</Accordion>
+
+<Accordion title="LLM API Rate Limit">
+  **Error**: `RateLimitError: Too many requests`
+  
+  **Cause**: Simulation makes many LLM calls per round; you hit provider limits.
+  
+  **Solution**:
+  - Reduce agent count (fewer profiles = fewer API calls)
+  - Upgrade your LLM provider plan
+  - Use a local LLM (Ollama, vLLM) for unlimited requests
+</Accordion>
+
+### Memory Errors During Large Simulations
+
+**Error Message**:
+```
+MemoryError: Unable to allocate array
+Killed (out of memory)
+```
+
+**Solutions**:
+
+<Steps>
+  <Step title="Reduce Agent Count">
+    Large simulations with 200+ agents require significant RAM. Start with 50-100 agents.
+  </Step>
+  <Step title="Lower Simulation Rounds">
+    Instead of 144 rounds, test with 20-40 rounds first.
+  </Step>
+  <Step title="Increase System Resources">
+    **Docker**: Edit `docker-compose.yml` to allocate more memory:
+    ```yaml
+    services:
+      backend:
+        deploy:
+          resources:
+            limits:
+              memory: 8G  # Increase from default
+    ```
+    
+    **Native**: Increase swap space or use a machine with more RAM.
+  </Step>
+</Steps>
+
+### Port Already in Use
+
+**Error Message**:
+```
+Error: Port 3000 is already in use
+Error: Port 5001 is already in use
+```
+
+**Solutions**:
+
+<Accordion title="Kill Existing Process">
+  **macOS/Linux**:
+  ```bash
+  # Find process using port 3000
+  lsof -ti:3000
+  # Kill it
+  kill -9 $(lsof -ti:3000)
+  
+  # Repeat for port 5001
+  kill -9 $(lsof -ti:5001)
+  ```
+  
+  **Windows**:
+  ```powershell
+  # Find process
+  netstat -ano | findstr :3000
+  # Kill by PID
+  taskkill /PID <PID> /F
+  ```
+</Accordion>
+
+<Accordion title="Change Default Ports">
+  Edit `package.json` (frontend) and `backend/app/__init__.py` (backend):
+  
+  ```json
+  // package.json
+  "scripts": {
+    "dev": "next dev -p 3001"  // Changed from 3000
+  }
+  ```
+  
+  ```python
+  # backend/app/__init__.py
+  if __name__ == '__main__':
+      app.run(host='0.0.0.0', port=5002)  # Changed from 5001
+  ```
+</Accordion>
+
+---
+
+## Report Generation Issues
+
+### Report Agent Stalls (No Progress)
+
+**Symptom**: Report generation gets stuck at "planning" or "generating" for 10+ minutes.
+
+**Diagnosis**:
+
+Check agent logs:
+
+```bash
+cat backend/uploads/reports/YOUR_REPORT_ID/console_log.txt
+tail -f backend/uploads/reports/YOUR_REPORT_ID/agent_log.jsonl
+```
+
+**Common Causes**:
+
+<Accordion title="LLM Timeout">
+  LLM provider is slow or unresponsive.
+  
+  **Solution**: Use a faster model or increase timeout in `backend/app/utils/llm_client.py`.
+</Accordion>
+
+<Accordion title="Empty Graph">
+  Graph has no nodes/edges, so retrieval tools return nothing.
+  
+  **Solution**: Verify graph has data:
+  ```bash
+  # Check node count
+  curl http://localhost:5001/api/graphs/YOUR_GRAPH_ID
+  ```
+</Accordion>
+
+<Accordion title="Tool Call Loop">
+  Report Agent keeps calling tools without finalizing.
+  
+  **Solution**: This is a known issue with some LLMs. Try:
+  - Use `gpt-4o` or `qwen-plus` (better instruction following)
+  - Reduce `REPORT_AGENT_MAX_TOOL_CALLS` in config to force finalization
+</Accordion>
+
+### Report Contains English Instead of Chinese
+
+**Symptom**: Simulation was in Chinese, but report is in English.
+
+**Cause**: LLM didn't follow language consistency instructions.
+
+**Solutions**:
+
+- Use a multilingual model like `qwen-plus` (optimized for Chinese)
+- Ensure seed material is primarily in Chinese
+- Manually edit the report Markdown file after generation
+
+---
+
+## Docker Deployment Issues
+
+### Docker Compose Build Fails
+
+**Error Message**:
+```
+ERROR: failed to solve: process "/bin/sh -c pip install..." did not complete successfully
+```
+
+**Solutions**:
+
+<Accordion title="Use Provided Mirror (China)">
+  Uncomment the accelerated image in `docker-compose.yml`:
+  
+  ```yaml
+  services:
+    frontend:
+      # image: ghcr.io/666ghj/mirofish-frontend:latest
+      image: registry.cn-hangzhou.aliyuncs.com/mirofish/frontend:latest  # ← Use this
+  ```
+</Accordion>
+
+<Accordion title="Build Locally Instead">
+  If pre-built images fail, build from source:
+  
+  ```bash
+  docker compose build --no-cache
+  docker compose up -d
+  ```
+</Accordion>
+
+### Container Crashes Immediately
+
+**Diagnosis**:
+
+```bash
+# Check container logs
+docker compose logs backend
+docker compose logs frontend
+
+# Check container status
+docker compose ps
+```
+
+**Common Issues**:
+
+- Missing `.env` file: Docker Compose reads `.env` from project root
+- Invalid environment variables: Check syntax in `.env`
+- Port conflicts: Ensure 3000 and 5001 are available
+
+---
+
+## Performance and Debugging
+
+### Enable Debug Logging
+
+Get more detailed logs for troubleshooting:
+
+```bash
+# .env
+FLASK_DEBUG=True
+```
+
+Or in `backend/app/__init__.py`:
+
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+### Check Simulation Database
+
+OASIS stores simulation state in SQLite databases:
+
+```bash
+# View Twitter simulation state
+sqlite3 backend/uploads/simulations/YOUR_ID/twitter_simulation.db \
+  "SELECT COUNT(*) FROM posts;"
+
+# View Reddit simulation state
+sqlite3 backend/uploads/simulations/YOUR_ID/reddit_simulation.db \
+  "SELECT COUNT(*) FROM posts;"
+```
+
+### Log File Locations
+
+Key log files for debugging:
+
+| Component | Log Location |
+|-----------|-------------|
+| Backend API | `backend/logs/mirofish.log` |
+| Simulation Main | `backend/uploads/simulations/{id}/simulation.log` |
+| Twitter Platform | `backend/uploads/simulations/{id}/twitter/actions.jsonl` |
+| Reddit Platform | `backend/uploads/simulations/{id}/reddit/actions.jsonl` |
+| Report Agent | `backend/uploads/reports/{id}/console_log.txt` |
+| Report Agent (Structured) | `backend/uploads/reports/{id}/agent_log.jsonl` |
+
+---
+
+## Common Workflow Issues
+
+### "Simulation Not Found" After Prepare
+
+**Symptom**: `/prepare` returns 200 OK, but `/start` returns 404.
+
+**Cause**: `simulation_id` mismatch or file system issue.
+
+**Solution**:
+
+```bash
+# List all simulation directories
+ls -la backend/uploads/simulations/
+
+# Verify your simulation ID exists
+ls backend/uploads/simulations/YOUR_SIMULATION_ID/simulation_config.json
+```
+
+Ensure you're using the exact `simulation_id` returned from `/prepare`.
+
+### Zep Graph ID Mismatch
+
+**Symptom**: Report generation fails with "Graph not found".
+
+**Cause**: You're using a different `graph_id` than the one used in `/prepare`.
+
+**Solution**:
+
+The correct flow:
+
+1. `/build-graph` → returns `graph_id`
+2. `/prepare` → use same `graph_id`
+3. `/start` → automatically uses `graph_id` from config
+4. `/generate-report` → use same `graph_id`
+
+---
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/666ghj/MiroFish/issues">
+    Report bugs or request features on the official repository
+  </Card>
+  <Card title="Discord Community" icon="discord" href="https://discord.com/channels/1469200078932545606/1469201282077163739">
+    Get help from the community and maintainers
+  </Card>
+  <Card title="QQ Group" icon="comments">
+    Join the Chinese-speaking community (see README for QR code)
+  </Card>
+  <Card title="Email Support" icon="envelope">
+    Contact the team at **mirofish@shanda.com**
+  </Card>
+</CardGroup>
+
+<Note>
+When reporting issues, include:
+- MiroFish version (commit hash or release tag)
+- Python and Node.js versions
+- Operating system
+- Relevant log snippets
+- Steps to reproduce
+</Note>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Performance Optimization" icon="gauge-high" href="/advanced/performance">
+    Learn how to optimize simulations for speed and cost
+  </Card>
+  <Card title="Customization Guide" icon="wrench" href="/advanced/customization">
+    Customize agents, tools, and simulation parameters
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all available endpoints and parameters
+  </Card>
+</CardGroup>

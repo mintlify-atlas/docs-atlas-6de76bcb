@@ -1,0 +1,653 @@
+---
+title: 'GraphRAG Knowledge Construction'
+description: 'How MiroFish uses GraphRAG for entity extraction, relationship mapping, and ontology-driven knowledge graph construction'
+---
+
+MiroFish leverages **GraphRAG** (Graph Retrieval-Augmented Generation) via Zep Cloud to transform unstructured seed documents into a structured knowledge graph that powers simulation and prediction.
+
+## What is GraphRAG?
+
+GraphRAG combines two AI paradigms:
+
+<CardGroup cols={2}>
+  <Card title="Knowledge Graphs" icon="project-diagram">
+    Structured representation of entities and relationships with explicit semantics and traversable connections.
+  </Card>
+  
+  <Card title="Retrieval-Augmented Generation" icon="magnifying-glass">
+    LLM-powered information retrieval that grounds generation in retrieved facts rather than hallucination.
+  </Card>
+</CardGroup>
+
+Unlike traditional RAG (which retrieves text chunks), GraphRAG:
+- **Extracts structured knowledge** from text
+- **Maps relationships** between entities
+- **Enables graph traversal** for multi-hop reasoning
+- **Provides provenance** linking facts to source documents
+
+## Ontology-Driven Extraction
+
+<Info>
+  MiroFish uses a domain-specific ontology to guide entity extraction, ensuring the graph contains the right types of entities for social simulation.
+</Info>
+
+### Ontology Generation Process
+
+Before building the graph, an LLM analyzes seed documents to generate a custom ontology:
+
+```python
+# From ontology_generator.py
+class OntologyGenerator:
+    def generate(
+        self,
+        document_texts: List[str],
+        simulation_requirement: str,
+        additional_context: Optional[str] = None
+    ) -> Dict[str, Any]:
+        # Build prompt with domain-specific instructions
+        system_prompt = ONTOLOGY_SYSTEM_PROMPT
+        user_prompt = self._build_user_message(
+            document_texts, 
+            simulation_requirement,
+            additional_context
+        )
+        
+        # LLM generates structured ontology
+        result = self.llm_client.chat_json(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.3,
+            max_tokens=4096
+        )
+        
+        return result  # {entity_types: [...], edge_types: [...]}
+```
+
+### Ontology Structure
+
+The ontology defines **10 entity types** and **6-10 edge types**:
+
+```json
+{
+  "entity_types": [
+    {
+      "name": "Student",
+      "description": "University student involved in the event",
+      "attributes": [
+        {"name": "department", "type": "text", "description": "Academic department"},
+        {"name": "year_level", "type": "text", "description": "Year of study"}
+      ],
+      "examples": ["Alice Chen", "Bob Zhang"]
+    },
+    {
+      "name": "University",
+      "description": "Educational institution",
+      "attributes": [
+        {"name": "location", "type": "text", "description": "City location"}
+      ],
+      "examples": ["Wuhan University", "Tsinghua University"]
+    },
+    {
+      "name": "Person",
+      "description": "Any individual not fitting specific types (fallback)",
+      "attributes": [],
+      "examples": ["Anonymous commenter", "Parent of student"]
+    },
+    {
+      "name": "Organization",
+      "description": "Any organization not fitting specific types (fallback)",
+      "attributes": [],
+      "examples": ["Local NGO", "Student club"]
+    }
+  ],
+  "edge_types": [
+    {
+      "name": "STUDIES_AT",
+      "description": "Student enrollment relationship",
+      "source_targets": [{"source": "Student", "target": "University"}],
+      "attributes": []
+    },
+    {
+      "name": "COMMENTS_ON",
+      "description": "Public commentary or opinion",
+      "source_targets": [
+        {"source": "Student", "target": "Event"},
+        {"source": "MediaOutlet", "target": "Event"},
+        {"source": "Person", "target": "Event"}
+      ],
+      "attributes": []
+    }
+  ]
+}
+```
+
+**Key design principles:**
+
+1. **Layered specificity**: 8 specific types + 2 generic fallbacks (Person, Organization)
+2. **Social simulation focus**: All entities must be actors that can post on social media
+3. **Attribute constraints**: Avoid reserved names (uuid, name, summary, created_at, group_id)
+4. **Source-target mappings**: Define valid relationship endpoints
+
+### Ontology Validation
+
+The system validates generated ontologies:
+
+```python
+# From ontology_generator.py
+def validate_ontology(ontology: Dict[str, Any]) -> List[str]:
+    errors = []
+    
+    # Must have exactly 10 entity types
+    if len(ontology.get("entity_types", [])) != 10:
+        errors.append("Must have exactly 10 entity types")
+    
+    # Must include Person and Organization fallbacks
+    entity_names = {e["name"] for e in ontology.get("entity_types", [])}
+    if "Person" not in entity_names:
+        errors.append("Must include 'Person' fallback type")
+    if "Organization" not in entity_names:
+        errors.append("Must include 'Organization' fallback type")
+    
+    # Validate edge types
+    edge_types = ontology.get("edge_types", [])
+    if not (6 <= len(edge_types) <= 10):
+        errors.append("Must have 6-10 edge types")
+    
+    # Check attribute naming
+    reserved_names = {'uuid', 'name', 'group_id', 'created_at', 'summary'}
+    for entity in ontology.get("entity_types", []):
+        for attr in entity.get("attributes", []):
+            if attr["name"].lower() in reserved_names:
+                errors.append(f"Attribute '{attr['name']}' uses reserved name")
+    
+    return errors
+```
+
+## Graph Construction Pipeline
+
+<Steps>
+  <Step title="Create Graph Instance">
+    A new Zep Cloud graph is provisioned with a unique ID.
+    
+    ```python
+    graph_id = f"mirofish_{uuid.uuid4().hex[:16]}"
+    self.client.graph.create(
+        graph_id=graph_id,
+        name="MiroFish Social Simulation Graph",
+        description="Knowledge graph for predicting social dynamics"
+    )
+    ```
+  </Step>
+  
+  <Step title="Register Ontology">
+    The generated ontology is converted to Zep's format and registered.
+    
+    ```python
+    # Convert to Pydantic models
+    entity_types = {}
+    for entity_def in ontology["entity_types"]:
+        # Dynamically create EntityModel subclass
+        attrs = {"__doc__": entity_def["description"]}
+        annotations = {}
+        
+        for attr_def in entity_def["attributes"]:
+            attr_name = attr_def["name"]
+            attrs[attr_name] = Field(
+                description=attr_def["description"],
+                default=None
+            )
+            annotations[attr_name] = Optional[EntityText]
+        
+        attrs["__annotations__"] = annotations
+        entity_class = type(entity_def["name"], (EntityModel,), attrs)
+        entity_types[entity_def["name"]] = entity_class
+    
+    # Similar for edge types...
+    
+    self.client.graph.set_ontology(
+        graph_ids=[graph_id],
+        entities=entity_types,
+        edges=edge_definitions
+    )
+    ```
+  </Step>
+  
+  <Step title="Split Documents">
+    Text is chunked for manageable processing.
+    
+    ```python
+    chunks = TextProcessor.split_text(
+        text, 
+        chunk_size=500, 
+        chunk_overlap=50
+    )
+    # Result: List of 500-char segments with 50-char overlap
+    ```
+  </Step>
+  
+  <Step title="Batch Episode Ingestion">
+    Chunks are sent to Zep in batches of 3 for entity extraction.
+    
+    ```python
+    for i in range(0, len(chunks), batch_size):
+        batch_chunks = chunks[i:i + batch_size]
+        
+        episodes = [
+            EpisodeData(data=chunk, type="text")
+            for chunk in batch_chunks
+        ]
+        
+        batch_result = self.client.graph.add_batch(
+            graph_id=graph_id,
+            episodes=episodes
+        )
+        
+        # Collect episode UUIDs for status tracking
+        for ep in batch_result:
+            episode_uuids.append(ep.uuid_)
+    ```
+  </Step>
+  
+  <Step title="Wait for Processing">
+    Zep processes episodes asynchronously. MiroFish polls completion status.
+    
+    ```python
+    pending_episodes = set(episode_uuids)
+    
+    while pending_episodes and time.time() - start_time < timeout:
+        for ep_uuid in list(pending_episodes):
+            episode = self.client.graph.episode.get(uuid_=ep_uuid)
+            
+            if episode.processed:
+                pending_episodes.remove(ep_uuid)
+                completed_count += 1
+        
+        # Progress update
+        progress_callback(
+            f"Zep processing... {completed_count}/{total_episodes} complete"
+        )
+        
+        time.sleep(3)  # Poll every 3 seconds
+    ```
+  </Step>
+  
+  <Step title="Retrieve Graph Data">
+    Once processing completes, fetch the constructed graph.
+    
+    ```python
+    # Paginated node retrieval
+    nodes = fetch_all_nodes(self.client, graph_id)
+    
+    # Paginated edge retrieval
+    edges = fetch_all_edges(self.client, graph_id)
+    
+    # Statistics
+    return GraphInfo(
+        graph_id=graph_id,
+        node_count=len(nodes),
+        edge_count=len(edges),
+        entity_types=list(set(node.labels[1] for node in nodes))
+    )
+    ```
+  </Step>
+</Steps>
+
+## Entity Extraction Details
+
+### How Zep Extracts Entities
+
+Zep's GraphRAG engine uses LLMs to:
+
+1. **Identify entity mentions** in text
+2. **Classify entities** according to ontology types
+3. **Resolve coreferences** ("Alice", "she", "the student" → same entity)
+4. **Merge duplicates** across episodes
+5. **Generate summaries** for each entity
+
+**Example text:**
+
+> "Alice Chen, a junior at Wuhan University studying Environmental Science, posted on social media about formaldehyde concerns in her dormitory. She claimed the university ignored her initial complaints."
+
+**Extracted entities:**
+
+```json
+[
+  {
+    "name": "Alice Chen",
+    "labels": ["Entity", "Student"],
+    "summary": "Junior at Wuhan University studying Environmental Science, outspoken about dormitory formaldehyde issue",
+    "attributes": {
+      "department": "Environmental Science",
+      "year_level": "Junior"
+    }
+  },
+  {
+    "name": "Wuhan University",
+    "labels": ["Entity", "University"],
+    "summary": "Educational institution where Alice Chen studies, accused of ignoring safety concerns",
+    "attributes": {
+      "location": "Wuhan"
+    }
+  }
+]
+```
+
+### Entity Attributes
+
+Ontology-defined attributes are extracted when present:
+
+- **Student** entities get `department` and `year_level` if mentioned
+- **University** entities get `location` if mentioned
+- Missing attributes remain `null`
+
+<Note>
+  Zep uses LLM-powered extraction, so attribute extraction quality depends on LLM capabilities and prompt engineering.
+</Note>
+
+## Relationship Mapping
+
+### Edge Extraction
+
+Zep identifies relationships from text:
+
+**Example text:**
+
+> "Alice Chen studies at Wuhan University. She posted on Twitter, criticizing the university's response to student complaints."
+
+**Extracted edges:**
+
+```json
+[
+  {
+    "name": "STUDIES_AT",
+    "fact": "Alice Chen studies at Wuhan University",
+    "source_node": "Alice Chen",
+    "target_node": "Wuhan University",
+    "created_at": "2024-03-13T10:00:00Z"
+  },
+  {
+    "name": "CRITICIZED",
+    "fact": "Alice Chen criticized Wuhan University's response to complaints",
+    "source_node": "Alice Chen",
+    "target_node": "Wuhan University",
+    "created_at": "2024-03-13T10:00:00Z"
+  }
+]
+```
+
+### Multi-Hop Relationships
+
+GraphRAG excels at multi-hop reasoning:
+
+**Query:** "How did media coverage influence public opinion?"
+
+**Graph traversal:**
+
+```
+[Media Outlet] -REPORTED_ON-> [Formaldehyde Incident]
+[Formaldehyde Incident] -AFFECTS-> [Wuhan University Dormitories]
+[Alice Chen] -LIVES_IN-> [Wuhan University Dormitories]
+[Alice Chen] -POSTED_ABOUT-> [Formaldehyde Incident]
+[Bob Zhang] -SAW_POST_BY-> [Alice Chen]
+[Bob Zhang] -JOINED_PROTEST-> [Student Movement]
+```
+
+**Insight:** Media coverage → raised awareness → Alice's post → Bob's engagement → protest formation
+
+This multi-hop chain is discoverable through graph traversal, unlike vector search which only finds direct mentions.
+
+## Temporal Knowledge Tracking
+
+<Info>
+  Zep automatically timestamps all facts, enabling temporal reasoning about how knowledge evolved.
+</Info>
+
+### Fact Lifecycle
+
+Each edge has temporal metadata:
+
+```python
+# From graph_builder.py - edge data structure
+{
+    "uuid": "edge_a3f8b2c1",
+    "name": "COMMENTED_ON",
+    "fact": "Alice Chen commented: 'The university must take responsibility'",
+    "source_node_uuid": "ent_9a7f3e2b",
+    "target_node_uuid": "ent_5f3a8c7d",
+    "created_at": "2024-03-13T10:00:00Z",     # When fact was added to graph
+    "valid_at": "2024-03-13T09:30:00Z",       # When fact became true (simulation time)
+    "invalid_at": null,                        # When fact became false (if applicable)
+    "expired_at": null,                        # When fact was superseded
+    "episodes": ["ep_4b2c9d1a"]               # Source episodes supporting this fact
+}
+```
+
+### Evolution Tracking
+
+When memory updates are enabled, the graph captures evolution:
+
+**Initial state (T0):**
+```
+[Alice Chen] -OPINION-> "Dormitory issue is concerning but manageable"
+```
+
+**After investigation report (T1):**
+```
+[Alice Chen] -OPINION-> "Dormitory issue is a serious health crisis" (valid_at: T1)
+# Previous opinion marked invalid_at: T1
+```
+
+**After university response (T2):**
+```
+[Alice Chen] -OPINION-> "University's response is inadequate" (valid_at: T2)
+[Alice Chen] -DEMANDS-> "Independent investigation" (valid_at: T2)
+```
+
+Report Agent can query:
+- **Current facts**: What is the latest state?
+- **Historical facts**: What changed over time?
+- **Fact provenance**: What episodes support each fact?
+
+## Graph Statistics and Validation
+
+### Quality Metrics
+
+After construction, MiroFish validates graph quality:
+
+```python
+# From graph_builder.py
+def _get_graph_info(self, graph_id: str) -> GraphInfo:
+    nodes = fetch_all_nodes(self.client, graph_id)
+    edges = fetch_all_edges(self.client, graph_id)
+    
+    # Entity type distribution
+    entity_types = {}
+    for node in nodes:
+        for label in node.labels:
+            if label not in ["Entity", "Node"]:  # Skip generic labels
+                entity_types[label] = entity_types.get(label, 0) + 1
+    
+    return GraphInfo(
+        graph_id=graph_id,
+        node_count=len(nodes),
+        edge_count=len(edges),
+        entity_types=list(entity_types.keys())
+    )
+```
+
+**Typical graph statistics:**
+
+```json
+{
+  "graph_id": "mirofish_a3f8b2c1",
+  "node_count": 127,
+  "edge_count": 342,
+  "entity_types": [
+    "Student",
+    "University",
+    "MediaOutlet",
+    "GovernmentAgency",
+    "Professor",
+    "PublicFigure",
+    "Organization",
+    "Person"
+  ]
+}
+```
+
+**Quality indicators:**
+
+- **Node count**: 50-200 entities indicates rich extraction
+- **Edge count**: 2-4x nodes suggests detailed relationship mapping
+- **Entity type coverage**: Using 6-8 of 10 types shows ontology fit
+- **Fallback usage**: Less than 20% Person/Organization indicates specific typing worked
+
+### Common Issues
+
+<Warning>
+  Graph construction can fail or produce poor quality results. Here are common issues and solutions.
+</Warning>
+
+**Issue: Too few entities extracted**
+
+*Cause:* Ontology too specific for document content
+
+*Solution:* Regenerate ontology with broader types or add more fallback types
+
+**Issue: Too many duplicate entities**
+
+*Cause:* Inconsistent naming in source documents ("Alice Chen" vs "Chen Alice" vs "A. Chen")
+
+*Solution:* Manual entity merging or pre-process documents for name standardization
+
+**Issue: Missing relationships**
+
+*Cause:* Implicit relationships not stated explicitly in text
+
+*Solution:* Add relationship types to ontology that Zep can infer (e.g., WORKS_FOR inferred from "employee at Company X")
+
+**Issue: Slow processing**
+
+*Cause:* Large documents or high token count
+
+*Solution:* Reduce `chunk_size`, use fewer documents, or increase `timeout`
+
+## Integration with Simulation
+
+### Entity-to-Agent Mapping
+
+Each graph node becomes a simulation agent:
+
+```python
+# From oasis_profile_generator.py
+def generate_profiles_from_entities(
+    entities: List[EntityNode],
+    use_llm: bool = True,
+    graph_id: Optional[str] = None
+) -> List[OasisAgentProfile]:
+    profiles = []
+    
+    for idx, entity in enumerate(entities):
+        # Entity node has rich context from graph
+        profile = self.generate_profile_from_entity(
+            entity=entity,
+            user_id=idx,
+            use_llm=use_llm
+        )
+        profiles.append(profile)
+    
+    return profiles
+```
+
+**Entity node structure:**
+
+```python
+@dataclass
+class EntityNode:
+    uuid: str
+    name: str
+    labels: List[str]            # ["Entity", "Student"]
+    summary: str                 # Generated by Zep
+    attributes: Dict[str, Any]   # Ontology-defined attributes
+    related_edges: List[Dict]    # Facts involving this entity
+    related_nodes: List[Dict]    # Connected entities
+```
+
+This rich context is used to generate the agent's 2000-word persona, ensuring agents behave consistently with their graph representation.
+
+### Graph-Informed Behavior
+
+Agents' social media behavior reflects their graph position:
+
+- **High-degree nodes** (many relationships) → influential agents, high posting frequency
+- **Opinion holders** (many COMMENTED_ON edges) → vocal agents
+- **Authorities** (REPRESENTS, REGULATES edges) → official tone
+- **Victims** (AFFECTED_BY edges) → emotional, personal stakes
+
+## Performance Optimization
+
+<Tip>
+  Graph construction is the slowest stage. Optimize by adjusting chunking and batching parameters.
+</Tip>
+
+**Key parameters:**
+
+```python
+# From graph_builder.py
+chunk_size = 500         # Characters per chunk (smaller = more chunks, longer processing)
+chunk_overlap = 50       # Overlap to preserve context across boundaries
+batch_size = 3           # Episodes per API call (larger = fewer calls but more memory)
+timeout = 600            # Max wait time for processing (seconds)
+```
+
+**Performance tuning:**
+
+- **For speed**: Increase `chunk_size` to 1000, `batch_size` to 5 (fewer API calls)
+- **For quality**: Decrease `chunk_size` to 300 (more granular extraction)
+- **For large documents**: Reduce `batch_size` to 1 (avoid memory issues)
+
+**Typical processing times:**
+
+| Document Size | Chunk Size | Batch Size | Processing Time |
+|---------------|------------|------------|----------------|
+| 5,000 words   | 500        | 3          | 1-2 minutes    |
+| 10,000 words  | 500        | 3          | 2-4 minutes    |
+| 50,000 words  | 500        | 3          | 10-15 minutes  |
+| 100,000 words | 1000       | 5          | 15-25 minutes  |
+
+<Note>
+  Processing time depends on Zep Cloud's backend capacity and your API tier. Free tier has lower priority than paid tiers.
+</Note>
+
+## Best Practices
+
+<Steps>
+  <Step title="Prepare Quality Seed Documents">
+    - Use well-written, structured text (news articles, reports)
+    - Avoid overly creative or metaphorical language
+    - Include explicit entity mentions and relationships
+    - Aim for 5,000-50,000 words total
+  </Step>
+  
+  <Step title="Design Simulation-Appropriate Ontology">
+    - All entity types must be social media actors (people, organizations)
+    - Include 2 fallback types (Person, Organization)
+    - Define 6-10 relationship types covering key interactions
+    - Avoid abstract concepts or themes as entity types
+  </Step>
+  
+  <Step title="Validate Graph Quality">
+    - Check node/edge counts match expectations
+    - Review entity type distribution (not over-reliant on fallbacks)
+    - Manually inspect a sample of entities and relationships
+    - Ensure key entities from documents are present
+  </Step>
+  
+  <Step title="Iterate if Needed">
+    - If graph quality is poor, regenerate ontology
+    - If specific entities missing, add examples to ontology
+    - If too many duplicates, standardize names in source documents
+  </Step>
+</Steps>

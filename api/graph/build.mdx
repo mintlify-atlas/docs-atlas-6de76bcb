@@ -1,0 +1,348 @@
+---
+title: Build Knowledge Graph
+description: Build a knowledge graph from project documents
+---
+
+## Build Knowledge Graph
+
+<Note>
+  Build a knowledge graph from extracted text using the generated ontology. This is an asynchronous operation that returns a task_id for progress tracking.
+</Note>
+
+```bash
+POST /api/graph/build
+```
+
+### Request Body (JSON)
+
+<ParamField body="project_id" type="string" required>
+  Project ID from ontology generation (e.g., `proj_abc123`)
+</ParamField>
+
+<ParamField body="graph_name" type="string">
+  Custom name for the knowledge graph (defaults to project name)
+</ParamField>
+
+<ParamField body="chunk_size" type="integer" default="500">
+  Text chunk size for graph building (characters)
+</ParamField>
+
+<ParamField body="chunk_overlap" type="integer" default="50">
+  Overlap between consecutive chunks (characters)
+</ParamField>
+
+<ParamField body="force" type="boolean" default="false">
+  Force rebuild if graph is already being built or completed
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Build task information">
+    <ResponseField name="project_id" type="string">
+      Project identifier
+    </ResponseField>
+    <ResponseField name="task_id" type="string">
+      Task ID for progress tracking
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Instructions for checking progress
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:5001/api/graph/build \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "proj_abc123",
+    "graph_name": "University Policy Graph",
+    "chunk_size": 500,
+    "chunk_overlap": 50
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'http://localhost:5001/api/graph/build',
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      project_id: 'proj_abc123',
+      chunk_size: 500,
+      chunk_overlap: 50
+    })
+  }
+);
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:5001/api/graph/build',
+    json={
+        'project_id': 'proj_abc123',
+        'chunk_size': 500,
+        'chunk_overlap': 50
+    }
+)
+data = response.json()
+```
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "project_id": "proj_abc123",
+    "task_id": "task_xyz789",
+    "message": "图谱构建任务已启动，请通过 /task/{task_id} 查询进度"
+  }
+}
+```
+
+## Check Build Progress
+
+<Note>
+  Use the task_id to monitor graph building progress.
+</Note>
+
+```bash
+GET /api/graph/task/{task_id}
+```
+
+### Path Parameters
+
+<ParamField path="task_id" type="string" required>
+  Task ID returned from the build request
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Whether the request succeeded
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="Task status">
+    <ResponseField name="task_id" type="string">
+      Task identifier
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Task status: `pending`, `processing`, `completed`, `failed`
+    </ResponseField>
+    <ResponseField name="progress" type="number">
+      Completion percentage (0-100)
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Current operation description
+    </ResponseField>
+    <ResponseField name="result" type="object">
+      Build results (when completed)
+    </ResponseField>
+    <ResponseField name="error" type="string">
+      Error message (if failed)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl http://localhost:5001/api/graph/task/task_xyz789
+```
+
+### Progress Response Examples
+
+<CodeGroup>
+```json Processing
+{
+  "success": true,
+  "data": {
+    "task_id": "task_xyz789",
+    "status": "processing",
+    "progress": 45,
+    "message": "添加文本块: 45/100",
+    "created_at": "2025-03-13T10:00:00Z",
+    "updated_at": "2025-03-13T10:05:30Z"
+  }
+}
+```
+
+```json Completed
+{
+  "success": true,
+  "data": {
+    "task_id": "task_xyz789",
+    "status": "completed",
+    "progress": 100,
+    "message": "图谱构建完成",
+    "result": {
+      "project_id": "proj_abc123",
+      "graph_id": "mirofish_graph123",
+      "node_count": 237,
+      "edge_count": 485,
+      "chunk_count": 100
+    },
+    "completed_at": "2025-03-13T10:15:00Z"
+  }
+}
+```
+
+```json Failed
+{
+  "success": true,
+  "data": {
+    "task_id": "task_xyz789",
+    "status": "failed",
+    "progress": 30,
+    "message": "构建失败: Connection timeout to Zep service",
+    "error": "requests.exceptions.Timeout: Connection timeout",
+    "failed_at": "2025-03-13T10:10:00Z"
+  }
+}
+```
+</CodeGroup>
+
+## Graph Building Process
+
+The graph building workflow:
+
+1. **Initialize** (0-10%): Set up Zep graph and validate ontology
+2. **Text Chunking** (10-15%): Split documents into processable chunks
+3. **Add Text Batches** (15-55%): Upload text chunks to Zep in batches
+4. **Process Episodes** (55-90%): Wait for Zep to extract entities and relationships
+5. **Retrieve Data** (90-100%): Fetch final graph statistics
+
+## Configuration Parameters
+
+### Chunk Size
+
+<ParamField body="chunk_size" type="integer" default="500">
+  Recommended values:
+  - **Small documents (< 10 pages):** 300-500 characters
+  - **Medium documents (10-50 pages):** 500-800 characters
+  - **Large documents (> 50 pages):** 800-1000 characters
+</ParamField>
+
+### Chunk Overlap
+
+<ParamField body="chunk_overlap" type="integer" default="50">
+  Overlap ensures context continuity:
+  - **Minimum:** 20 characters
+  - **Recommended:** 50-100 characters (10-15% of chunk_size)
+  - **Maximum:** 200 characters
+</ParamField>
+
+## Error Responses
+
+<CodeGroup>
+```json Missing Project ID
+{
+  "success": false,
+  "error": "请提供 project_id"
+}
+```
+
+```json Project Not Found
+{
+  "success": false,
+  "error": "项目不存在: proj_invalid"
+}
+```
+
+```json No Ontology
+{
+  "success": false,
+  "error": "项目尚未生成本体，请先调用 /ontology/generate"
+}
+```
+
+```json Already Building
+{
+  "success": false,
+  "error": "图谱正在构建中，请勿重复提交。如需强制重建，请添加 force: true",
+  "task_id": "task_xyz789"
+}
+```
+
+```json Configuration Error
+{
+  "success": false,
+  "error": "配置错误: ZEP_API_KEY未配置"
+}
+```
+</CodeGroup>
+
+## Force Rebuild
+
+To rebuild an existing graph:
+
+```bash
+curl -X POST http://localhost:5001/api/graph/build \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "proj_abc123",
+    "force": true
+  }'
+```
+
+<Warning>
+  Force rebuilding will reset project status and create a new graph. Previous graph data will be lost.
+</Warning>
+
+## List All Tasks
+
+Get all graph building tasks:
+
+```bash
+GET /api/graph/tasks
+```
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "task_id": "task_xyz789",
+      "status": "completed",
+      "progress": 100,
+      "created_at": "2025-03-13T10:00:00Z"
+    },
+    {
+      "task_id": "task_abc456",
+      "status": "processing",
+      "progress": 65,
+      "created_at": "2025-03-13T11:30:00Z"
+    }
+  ],
+  "count": 2
+}
+```
+
+## Next Steps
+
+After building a knowledge graph:
+
+<CardGroup cols={2}>
+  <Card title="Create Simulation" icon="users" href="/api/simulation/entities">
+    Create simulations from your knowledge graph
+  </Card>
+  <Card title="View Graph Data" icon="chart-network" href="/api/graph/projects">
+    Access graph nodes and relationships
+  </Card>
+</CardGroup>

@@ -1,0 +1,461 @@
+---
+title: Generating Reports
+description: Create comprehensive analysis reports from your simulation results
+---
+
+## Overview
+
+The Report Agent is an intelligent LLM-powered assistant that analyzes simulation results and generates detailed prediction reports. It uses ReACT (Reasoning + Acting) methodology to autonomously gather insights from the knowledge graph and simulation data, producing structured analysis documents.
+
+## When to Generate Reports
+
+<CardGroup cols={2}>
+  <Card title="After Completion" icon="flag-checkered">
+    **Best practice**: Wait for simulation to complete for full analysis
+    
+    All agent interactions and outcomes available
+  </Card>
+  
+  <Card title="Mid-Simulation" icon="clock">
+    **Interim analysis**: Generate reports during long-running simulations
+    
+    Provides preliminary insights and trends
+  </Card>
+</CardGroup>
+
+## Starting Report Generation
+
+```bash
+POST /api/report/generate
+Content-Type: application/json
+
+{
+  "simulation_id": "sim_m1n2o3p4",
+  "force_regenerate": false
+}
+```
+
+### Parameters
+
+<ParamField path="simulation_id" type="string" required>
+  The simulation ID to analyze
+</ParamField>
+
+<ParamField path="force_regenerate" type="boolean" default="false">
+  Regenerate even if a report already exists
+</ParamField>
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_m1n2o3p4",
+    "report_id": "report_r1s2t3u4",
+    "task_id": "task_v5w6x7y8",
+    "status": "generating",
+    "message": "Report generation started",
+    "already_generated": false
+  }
+}
+```
+
+<Info>
+The `report_id` is immediately returned, allowing you to monitor progress before completion.
+</Info>
+
+## Report Agent Capabilities
+
+The Report Agent is equipped with powerful analysis tools:
+
+### Search and Retrieval
+
+<Card title="Graph Search" icon="magnifying-glass">
+  Queries the knowledge graph for specific entities, relationships, and facts
+  
+  ```python
+  search_graph(query="student reactions to policy", limit=20)
+  ```
+</Card>
+
+### Analysis Tools
+
+<CardGroup cols={2}>
+  <Card title="Insight Forge" icon="lightbulb">
+    Generates insights by analyzing graph data and simulation events
+    
+    Produces:
+    - Key findings
+    - Pattern identification
+    - Trend analysis
+  </Card>
+  
+  <Card title="Panorama View" icon="chart-line">
+    Provides statistical overview:
+    - Entity counts by type
+    - Relationship distributions
+    - Network metrics
+  </Card>
+</CardGroup>
+
+### Agent Interaction
+
+<Card title="Interview" icon="microphone">
+  Queries specific agents about their behaviors and motivations
+  
+  ```python
+  interview(agent_name="Dr. Sarah Chen", 
+           question="Why did you support the policy?")
+  ```
+</Card>
+
+## Monitoring Report Progress
+
+### Check Generation Status
+
+```bash
+POST /api/report/generate/status
+Content-Type: application/json
+
+{
+  "task_id": "task_v5w6x7y8",
+  "simulation_id": "sim_m1n2o3p4"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "task_id": "task_v5w6x7y8",
+    "status": "processing",
+    "progress": 45,
+    "message": "[Generating] Section 3/6: Key Findings",
+    "created_at": "2026-03-13T15:30:00",
+    "updated_at": "2026-03-13T15:33:15"
+  }
+}
+```
+
+### Real-time Section Progress
+
+```bash
+GET /api/report/{report_id}/sections
+```
+
+Monitor sections as they're generated:
+
+```json
+{
+  "success": true,
+  "data": {
+    "report_id": "report_r1s2t3u4",
+    "sections": [
+      {
+        "filename": "section_01.md",
+        "section_index": 1,
+        "content": "## Executive Summary\n\nThe simulation revealed..." 
+      },
+      {
+        "filename": "section_02.md",
+        "section_index": 2,
+        "content": "## Simulation Background\n\nThis analysis..." 
+      }
+    ],
+    "total_sections": 2,
+    "is_complete": false
+  }
+}
+```
+
+<Tip>
+Frontend applications can poll this endpoint to display report sections as they're written, providing a live generation experience.
+</Tip>
+
+## Report Content and Format
+
+### Report Structure
+
+The Report Agent generates a comprehensive document with:
+
+<Steps>
+  <Step title="Executive Summary">
+    High-level overview of simulation findings and key predictions
+  </Step>
+  
+  <Step title="Simulation Background">
+    Context about the scenario, seed materials, and simulation setup
+  </Step>
+  
+  <Step title="Key Findings">
+    Major insights discovered through graph and simulation analysis
+  </Step>
+  
+  <Step title="Agent Behaviors">
+    Analysis of how different agent types responded and interacted
+  </Step>
+  
+  <Step title="Predictions and Implications">
+    Forward-looking analysis based on observed patterns
+  </Step>
+  
+  <Step title="Methodology Notes">
+    Transparency about data sources and analytical approaches
+  </Step>
+</Steps>
+
+### Example Report Excerpt
+
+```markdown
+## Executive Summary
+
+The simulation modeled public reaction to a university AI policy 
+announcement across 72 hours of social media activity. Key findings:
+
+1. **Initial Reception**: Mixed sentiment (42% supportive, 38% concerned, 
+   20% neutral) with professors showing stronger support than students.
+
+2. **Viral Dynamics**: 3 key posts drove 67% of engagement, with student 
+   privacy concerns becoming the dominant discussion thread by hour 24.
+
+3. **Stakeholder Alignment**: Faculty and administration showed aligned 
+   messaging, while student groups fragmented into privacy advocates 
+   vs. AI enthusiasts.
+
+4. **Prediction**: Without addressing privacy concerns explicitly, 
+   student opposition likely to intensify, particularly on Reddit 
+   communities (projected 2.3x increase in critical posts).
+
+## Key Findings
+
+### Finding 1: Privacy Concerns Dominated Discussion
+
+Graph analysis revealed "student privacy" emerged as the central topic, 
+connecting to 47 distinct discussion threads...
+```
+
+### Markdown Output
+
+Reports are generated in clean Markdown format:
+- Compatible with documentation sites
+- Easy to convert to PDF, HTML, or DOCX
+- Version-controllable
+- Human-readable
+
+## Retrieving Completed Reports
+
+### Get Report Details
+
+```bash
+GET /api/report/{report_id}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "report_id": "report_r1s2t3u4",
+    "simulation_id": "sim_m1n2o3p4",
+    "status": "completed",
+    "outline": {
+      "title": "AI Policy Simulation Analysis",
+      "sections": [
+        {"title": "Executive Summary", "description": "..."},
+        {"title": "Key Findings", "description": "..."}
+      ]
+    },
+    "markdown_content": "# AI Policy Simulation Analysis\n\n## Executive Summary...",
+    "created_at": "2026-03-13T15:30:00",
+    "completed_at": "2026-03-13T15:45:22"
+  }
+}
+```
+
+### Download Report
+
+```bash
+GET /api/report/{report_id}/download
+```
+
+Downloads the full report as a `.md` file.
+
+## Regenerating Reports
+
+To create a new report with updated analysis:
+
+```bash
+POST /api/report/generate
+{
+  "simulation_id": "sim_m1n2o3p4",
+  "force_regenerate": true
+}
+```
+
+<Warning>
+Regenerating creates a new report with a new `report_id`. The old report is preserved unless manually deleted.
+</Warning>
+
+### When to Regenerate
+
+<CardGroup cols={2}>
+  <Card title="Simulation Extended" icon="forward">
+    You ran more rounds after initial report generation
+  </Card>
+  <Card title="New Analysis Angle" icon="rotate">
+    You want to explore different aspects of the same simulation
+  </Card>
+  <Card title="Improved Prompts" icon="wand-magic-sparkles">
+    System improvements yield better insights on re-analysis
+  </Card>
+  <Card title="Additional Context" icon="plus">
+    You've added more seed materials or graph data
+  </Card>
+</CardGroup>
+
+## Advanced Features
+
+### Agent Execution Logs
+
+See exactly how the Report Agent reasoned:
+
+```bash
+GET /api/report/{report_id}/agent-log
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "logs": [
+      {
+        "timestamp": "2026-03-13T15:31:45",
+        "action": "tool_call",
+        "stage": "generating",
+        "section_title": "Key Findings",
+        "section_index": 3,
+        "details": {
+          "tool_name": "search_graph",
+          "parameters": {"query": "student privacy concerns"},
+          "result_count": 23
+        }
+      },
+      {
+        "timestamp": "2026-03-13T15:31:52",
+        "action": "llm_response",
+        "stage": "generating",
+        "section_title": "Key Findings",
+        "details": {
+          "model": "gpt-4",
+          "tokens": 1247,
+          "content_preview": "Based on the graph search results..."
+        }
+      }
+    ]
+  }
+}
+```
+
+### Console Logs
+
+View INFO/WARNING level logs:
+
+```bash
+GET /api/report/{report_id}/console-log
+```
+
+Useful for debugging or understanding generation process.
+
+## Report Quality Tips
+
+### For Better Reports
+
+<Steps>
+  <Step title="Complete Simulations">
+    Full simulations provide richer data for analysis
+  </Step>
+  
+  <Step title="Clear Requirements">
+    Specific simulation requirements lead to focused reports
+  </Step>
+  
+  <Step title="Rich Seed Materials">
+    More context in original documents = deeper insights
+  </Step>
+  
+  <Step title="Diverse Agents">
+    Multiple stakeholder types enable multi-perspective analysis
+  </Step>
+</Steps>
+
+### Understanding Limitations
+
+<Warning>
+Reports are AI-generated analyses, not definitive predictions. They should inform decision-making, not replace human judgment.
+</Warning>
+
+**Considerations:**
+
+- **Simulation Scope**: Reports reflect simulated data, not real-world certainty
+- **LLM Hallucination**: Always verify critical claims against source data
+- **Bias**: Agent personas and LLM models may introduce biases
+- **Timeframe**: Short simulations may miss long-term dynamics
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Report generation failed">
+    **Common causes:**
+    - Insufficient simulation data (too few rounds/actions)
+    - Graph query errors (check graph_id validity)
+    - LLM API issues (rate limits, timeouts)
+    
+    **Check:**
+    ```bash
+    GET /api/report/{report_id}/console-log
+    ```
+  </Accordion>
+  
+  <Accordion title="Report is too generic">
+    **Improve by:**
+    - Making simulation requirements more specific
+    - Running longer simulations for more data
+    - Ensuring diverse agent behaviors in config
+  </Accordion>
+  
+  <Accordion title="Missing expected insights">
+    The Report Agent autonomously chooses what to analyze. If certain aspects are missing:
+    - Use the **Interview** feature to query agents directly
+    - Generate a new report with `force_regenerate`
+    - Manually query the graph for specific information
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Interact with Simulation" href="/guide/interaction" icon="comments">
+    Interview agents and explore the knowledge graph
+  </Card>
+  <Card title="Start New Simulation" href="/guide/upload-seed-materials" icon="rotate">
+    Apply insights to a new prediction scenario
+  </Card>
+</CardGroup>
+
+## Deleting Reports
+
+```bash
+DELETE /api/report/{report_id}
+```
+
+Permanently removes the report and associated files.
+
+<Info>
+Deleting a report does not affect the underlying simulation or graph data.
+</Info>

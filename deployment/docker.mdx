@@ -1,0 +1,508 @@
+---
+title: Docker Deployment
+description: Deploy MiroFish using Docker Compose for containerized environments
+---
+
+Docker deployment provides a streamlined way to run MiroFish with all dependencies bundled in containers. This method is ideal for production environments and quick testing.
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="Docker" icon="docker">
+    **Version:** 20.10 or higher
+    
+    Container runtime for running MiroFish.
+    
+    **Check installation:**
+    ```bash
+    docker --version
+    ```
+  </Card>
+  
+  <Card title="Docker Compose" icon="layer-group">
+    **Version:** 2.0 or higher
+    
+    Tool for managing multi-container applications.
+    
+    **Check installation:**
+    ```bash
+    docker compose version
+    ```
+  </Card>
+</CardGroup>
+
+<Info>
+Docker Desktop includes both Docker and Docker Compose. Download from [docker.com](https://www.docker.com/products/docker-desktop/).
+</Info>
+
+## Quick Start
+
+<Steps>
+  <Step title="Get the Repository">
+    Clone the MiroFish repository:
+    
+    ```bash
+    git clone https://github.com/666ghj/MiroFish.git
+    cd MiroFish
+    ```
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Copy the example environment file and add your API keys:
+    
+    ```bash
+    cp .env.example .env
+    ```
+    
+    Edit the `.env` file with your configuration:
+    
+    ```env
+    # LLM API Configuration
+    LLM_API_KEY=your_api_key_here
+    LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+    LLM_MODEL_NAME=qwen-plus
+    
+    # Zep Cloud Configuration
+    ZEP_API_KEY=your_zep_api_key_here
+    ```
+    
+    <Note>
+    The Docker container automatically reads the `.env` file from the project root.
+    </Note>
+  </Step>
+
+  <Step title="Start MiroFish">
+    Launch the containers using Docker Compose:
+    
+    ```bash
+    docker compose up -d
+    ```
+    
+    The `-d` flag runs containers in detached mode (background).
+    
+    **Expected output:**
+    ```
+    [+] Running 1/1
+    ✔ Container mirofish  Started
+    ```
+  </Step>
+
+  <Step title="Verify Installation">
+    Check that the container is running:
+    
+    ```bash
+    docker compose ps
+    ```
+    
+    Access MiroFish in your browser:
+    ```
+    http://localhost:3000
+    ```
+  </Step>
+</Steps>
+
+## Docker Compose Configuration
+
+The `docker-compose.yml` file defines the MiroFish service:
+
+```yaml docker-compose.yml
+services:
+  mirofish:
+    image: ghcr.io/666ghj/mirofish:latest
+    container_name: mirofish
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+      - "5001:5001"
+    restart: unless-stopped
+    volumes:
+      - ./backend/uploads:/app/backend/uploads
+```
+
+### Configuration Details
+
+<CardGroup cols={2}>
+  <Card title="Image Source" icon="box">
+    **Registry:** GitHub Container Registry
+    
+    **Image:** `ghcr.io/666ghj/mirofish:latest`
+    
+    <Tip>
+    For faster pulls in China, use the mirror:
+    ```
+    ghcr.nju.edu.cn/666ghj/mirofish:latest
+    ```
+    </Tip>
+  </Card>
+  
+  <Card title="Port Mapping" icon="network-wired">
+    **3000:3000** - Frontend interface
+    
+    **5001:5001** - Backend API
+    
+    Accessible on `localhost` or your server's IP address.
+  </Card>
+</CardGroup>
+
+### Volume Mounts
+
+MiroFish mounts a volume for persistent data storage:
+
+```yaml
+volumes:
+  - ./backend/uploads:/app/backend/uploads
+```
+
+<Info>
+This volume stores:
+- Uploaded documents (PDFs, markdown files)
+- Simulation data and results
+- Generated reports
+
+Data persists even when the container is stopped or recreated.
+</Info>
+
+## Using Alternative Registry Mirrors
+
+If pulling from GitHub Container Registry is slow, use an alternative mirror:
+
+```yaml docker-compose.yml
+services:
+  mirofish:
+    # Faster mirror for users in China
+    image: ghcr.nju.edu.cn/666ghj/mirofish:latest
+    # ... rest of configuration
+```
+
+<Tip>
+Edit `docker-compose.yml` and replace the image URL with the mirror address provided in the comments.
+</Tip>
+
+## Managing the Container
+
+### Start Services
+
+<CodeGroup>
+```bash Start in Background
+# Start and run in detached mode
+docker compose up -d
+```
+
+```bash Start with Logs
+# Start and view logs in real-time
+docker compose up
+```
+</CodeGroup>
+
+### Stop Services
+
+```bash
+# Stop containers (keeps data)
+docker compose stop
+
+# Stop and remove containers (keeps data in volumes)
+docker compose down
+```
+
+### View Logs
+
+<CodeGroup>
+```bash All Logs
+# View all container logs
+docker compose logs
+```
+
+```bash Follow Logs
+# Stream logs in real-time
+docker compose logs -f
+```
+
+```bash Recent Logs
+# View last 100 lines
+docker compose logs --tail=100
+```
+</CodeGroup>
+
+### Restart Services
+
+```bash
+# Restart the container
+docker compose restart
+
+# Restart with updated .env file
+docker compose down
+docker compose up -d
+```
+
+### Update MiroFish
+
+Pull the latest image and restart:
+
+```bash
+# Pull latest version
+docker compose pull
+
+# Restart with new image
+docker compose up -d
+```
+
+<Warning>
+Always backup your data in `./backend/uploads/` before updating.
+</Warning>
+
+## Accessing Services
+
+Once running, access MiroFish services:
+
+<CardGroup cols={2}>
+  <Card title="Web Interface" icon="browser">
+    **Local Access:**
+    ```
+    http://localhost:3000
+    ```
+    
+    **Remote Access:**
+    ```
+    http://YOUR_SERVER_IP:3000
+    ```
+  </Card>
+  
+  <Card title="Backend API" icon="code">
+    **Local Access:**
+    ```
+    http://localhost:5001
+    ```
+    
+    **Remote Access:**
+    ```
+    http://YOUR_SERVER_IP:5001
+    ```
+  </Card>
+</CardGroup>
+
+## Advanced Configuration
+
+### Custom Port Mapping
+
+To use different ports, modify `docker-compose.yml`:
+
+```yaml docker-compose.yml
+ports:
+  - "8080:3000"  # Frontend on port 8080
+  - "8081:5001"  # Backend on port 8081
+```
+
+Then restart:
+```bash
+docker compose down
+docker compose up -d
+```
+
+### Using Docker Compose Override
+
+Create a `docker-compose.override.yml` for local customizations:
+
+```yaml docker-compose.override.yml
+services:
+  mirofish:
+    ports:
+      - "8080:3000"
+      - "8081:5001"
+    environment:
+      - FLASK_DEBUG=true
+```
+
+<Info>
+Docker Compose automatically merges `docker-compose.yml` and `docker-compose.override.yml`. The override file is ignored by Git.
+</Info>
+
+### Resource Limits
+
+Limit container resource usage:
+
+```yaml docker-compose.yml
+services:
+  mirofish:
+    image: ghcr.io/666ghj/mirofish:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+```
+
+## Dockerfile Reference
+
+The official MiroFish Dockerfile:
+
+```dockerfile Dockerfile
+FROM python:3.11
+
+# Install Node.js (>=18) and necessary tools
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends nodejs npm \
+  && rm -rf /var/lib/apt/lists/*
+
+# Copy uv from official image
+COPY --from=ghcr.io/astral-sh/uv:0.9.26 /uv /uvx /bin/
+
+WORKDIR /app
+
+# Copy dependency files to leverage caching
+COPY package.json package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json ./frontend/
+COPY backend/pyproject.toml backend/uv.lock ./backend/
+
+# Install dependencies (Node + Python)
+RUN npm ci \
+  && npm ci --prefix frontend \
+  && cd backend && uv sync --frozen
+
+# Copy project source code
+COPY . .
+
+EXPOSE 3000 5001
+
+# Start both frontend and backend (development mode)
+CMD ["npm", "run", "dev"]
+```
+
+### What's Included
+
+- **Base:** Python 3.11 official image
+- **Node.js:** Installed via apt for frontend
+- **uv:** Copied from Astral's official uv image
+- **Dependencies:** Pre-installed for faster startup
+- **Ports:** 3000 (frontend) and 5001 (backend)
+
+## Troubleshooting
+
+### Container Fails to Start
+
+<Tip>
+**Solution:** Check container logs for errors:
+
+```bash
+docker compose logs
+```
+
+Common issues:
+- Missing or invalid API keys in `.env`
+- Ports 3000 or 5001 already in use
+- Insufficient system resources
+</Tip>
+
+### Cannot Access from Remote Host
+
+<Tip>
+**Solution:** Ensure firewall allows connections:
+
+```bash
+# Check if ports are open
+sudo ufw allow 3000
+sudo ufw allow 5001
+
+# Or for specific IP range
+sudo ufw allow from 192.168.1.0/24 to any port 3000
+```
+</Tip>
+
+### Slow Image Pull
+
+<Tip>
+**Solution:** Use an alternative registry mirror:
+
+1. Edit `docker-compose.yml`
+2. Change image to: `ghcr.nju.edu.cn/666ghj/mirofish:latest`
+3. Pull again: `docker compose pull`
+</Tip>
+
+### Data Not Persisting
+
+<Tip>
+**Solution:** Verify volume mount:
+
+```bash
+# Check volume configuration
+docker compose config
+
+# Inspect container volumes
+docker inspect mirofish
+```
+
+Ensure `./backend/uploads` directory exists and has correct permissions.
+</Tip>
+
+### Out of Memory Errors
+
+<Tip>
+**Solution:** Increase Docker resource limits:
+
+- **Docker Desktop:** Settings → Resources → Memory (increase to 4GB+)
+- **Linux:** Add resource limits in `docker-compose.yml` (see Advanced Configuration)
+</Tip>
+
+## Production Deployment
+
+### Using a Reverse Proxy
+
+For production, use nginx or Caddy as a reverse proxy:
+
+```nginx nginx.conf
+server {
+    listen 80;
+    server_name mirofish.example.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api {
+        proxy_pass http://localhost:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+### Enable HTTPS
+
+Use Let's Encrypt with Certbot:
+
+```bash
+# Install Certbot
+sudo apt install certbot python3-certbot-nginx
+
+# Obtain certificate
+sudo certbot --nginx -d mirofish.example.com
+```
+
+### Monitoring
+
+Monitor container health:
+
+```bash
+# Check container stats
+docker stats mirofish
+
+# View resource usage
+docker compose stats
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Explore all configuration options and environment variables.
+  </Card>
+  
+  <Card title="Source Installation" icon="code" href="/deployment/source-installation">
+    Install from source for development and customization.
+  </Card>
+</CardGroup>

@@ -1,80 +1,546 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart Guide
+description: Get from zero to your first MiroFish simulation in under 15 minutes
 ---
 
-## Get started in three steps
+# Quickstart Guide
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will help you deploy MiroFish and run your first prediction simulation in under 15 minutes.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+**What You'll Accomplish:**
+- Install MiroFish locally
+- Configure API keys for LLM and Zep Cloud
+- Start the full-stack application
+- Run your first swarm intelligence simulation
 </Note>
+
+## Prerequisites Check
+
+Before you begin, ensure you have the following tools installed:
+
+<Steps>
+  <Step title="Node.js 18+">
+    MiroFish requires Node.js 18 or higher for the frontend.
+    
+    **Check your version:**
+    ```bash
+    node -v
+    ```
+    
+    Expected output: `v18.0.0` or higher
+    
+    <Info>
+    **Don't have Node.js?** Download from [nodejs.org](https://nodejs.org/)
+    </Info>
+  </Step>
+  
+  <Step title="Python 3.11-3.12">
+    The backend requires Python 3.11 or 3.12 (not 3.13+).
+    
+    **Check your version:**
+    ```bash
+    python --version
+    # or
+    python3 --version
+    ```
+    
+    Expected output: `Python 3.11.x` or `Python 3.12.x`
+    
+    <Warning>
+    Python 3.13+ is **not supported** due to dependency compatibility. Use 3.11 or 3.12.
+    </Warning>
+  </Step>
+  
+  <Step title="uv (Python Package Manager)">
+    MiroFish uses `uv` for fast, reliable Python dependency management.
+    
+    **Check your version:**
+    ```bash
+    uv --version
+    ```
+    
+    **Don't have uv?** Install it:
+    ```bash
+    # macOS/Linux
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    
+    # Windows
+    powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+    ```
+    
+    Learn more at [docs.astral.sh/uv](https://docs.astral.sh/uv/)
+  </Step>
+</Steps>
+
+## Installation
+
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/666ghj/MiroFish.git
+cd MiroFish
+```
+
+### Step 2: Configure Environment Variables
+
+MiroFish requires API keys for LLM services and Zep Cloud memory management.
+
+<Steps>
+  <Step title="Copy the example configuration">
+    ```bash
+    cp .env.example .env
+    ```
+  </Step>
+  
+  <Step title="Edit .env with your API keys">
+    Open `.env` in your favorite editor and configure the following:
+    
+    ```env
+    # LLM API Configuration (supports any OpenAI SDK format)
+    # Recommended: Alibaba Qwen-plus via Bailian Platform
+    # https://bailian.console.aliyun.com/
+    LLM_API_KEY=your_api_key_here
+    LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+    LLM_MODEL_NAME=qwen-plus
+    
+    # Zep Cloud Configuration (Free tier available)
+    # https://app.getzep.com/
+    ZEP_API_KEY=your_zep_api_key_here
+    ```
+  </Step>
+</Steps>
+
+<CardGroup cols={2}>
+  <Card title="Get LLM API Key" icon="key" href="https://bailian.console.aliyun.com/">
+    **Alibaba Bailian Platform (Recommended)**
+    
+    - Model: `qwen-plus`
+    - OpenAI SDK compatible
+    - Cost-effective for simulations
+    
+    <Warning>
+    **Usage Note**: Simulations consume significant tokens. Start with fewer than 40 rounds to control costs.
+    </Warning>
+  </Card>
+  
+  <Card title="Get Zep Cloud API Key" icon="brain" href="https://app.getzep.com/">
+    **Zep Cloud Memory Platform**
+    
+    - Free monthly quota available
+    - GraphRAG-powered knowledge graphs
+    - Long-term memory for agents
+    
+    <Info>
+    The free tier is sufficient for initial experiments and small-scale simulations.
+    </Info>
+  </Card>
+</CardGroup>
+
+### Alternative LLM Providers
+
+MiroFish supports **any LLM API that follows OpenAI SDK format**:
+
+<CodeGroup>
+```env OpenAI
+LLM_API_KEY=sk-your-openai-key
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL_NAME=gpt-4o-mini
+```
+
+```env Azure OpenAI
+LLM_API_KEY=your-azure-key
+LLM_BASE_URL=https://your-resource.openai.azure.com/openai/deployments/your-deployment
+LLM_MODEL_NAME=gpt-4
+```
+
+```env Other Providers
+LLM_API_KEY=your_api_key
+LLM_BASE_URL=https://your-provider-url/v1
+LLM_MODEL_NAME=your-model-name
+```
+</CodeGroup>
+
+### Optional: Boost LLM Configuration
+
+For advanced users who want to use different models for different tasks:
+
+```env
+# Optional: Accelerated LLM for specific operations
+LLM_BOOST_API_KEY=your_boost_api_key
+LLM_BOOST_BASE_URL=your_boost_base_url
+LLM_BOOST_MODEL_NAME=your_boost_model
+```
+
+<Tip>
+Only add boost configuration if you need it. Omit these variables from `.env` if not using.
+</Tip>
+
+### Step 3: Install Dependencies
+
+MiroFish provides convenient npm scripts to install all dependencies:
+
+<Tabs>
+  <Tab title="One-Command Install (Recommended)">
+    Install everything (root + frontend + backend) in one command:
+    
+    ```bash
+    npm run setup:all
+    ```
+    
+    This will:
+    1. Install root-level npm dependencies
+    2. Install frontend dependencies (Vue.js, Vite, D3.js)
+    3. Create Python virtual environment and install backend dependencies
+  </Tab>
+  
+  <Tab title="Step-by-Step Install">
+    If you prefer to install components separately:
+    
+    ```bash
+    # 1. Install Node dependencies (root + frontend)
+    npm run setup
+    
+    # 2. Install Python dependencies (backend)
+    npm run setup:backend
+    ```
+  </Tab>
+</Tabs>
+
+<Info>
+**What's Happening?**
+- `npm run setup` → Installs Node.js dependencies for root and frontend
+- `npm run setup:backend` → Uses `uv sync` to create a virtual environment and install Python packages
+- `npm run setup:all` → Chains both commands together
+</Info>
+
+## Starting the Application
+
+### Start Both Services (Recommended)
+
+The easiest way to start MiroFish is to run both frontend and backend simultaneously:
+
+```bash
+npm run dev
+```
+
+This command uses `concurrently` to start:
+- **Backend**: Flask server on `http://localhost:5001`
+- **Frontend**: Vite dev server on `http://localhost:3000`
+
+<Info>
+**Expected Output:**
+```
+[backend] * Running on http://0.0.0.0:5001
+[frontend] VITE v7.2.4 ready in 1234 ms
+[frontend] ➜  Local:   http://localhost:3000/
+```
+</Info>
+
+### Start Services Individually
+
+For development or debugging, you can start services separately:
+
+<Tabs>
+  <Tab title="Backend Only">
+    ```bash
+    npm run backend
+    ```
+    
+    Starts Flask server on port 5001.
+  </Tab>
+  
+  <Tab title="Frontend Only">
+    ```bash
+    npm run frontend
+    ```
+    
+    Starts Vite dev server on port 3000.
+  </Tab>
+</Tabs>
+
+## Access the UI
+
+Once services are running, open your browser and navigate to:
+
+```
+http://localhost:3000
+```
+
+You should see the MiroFish home page with the main workflow interface.
+
+<CardGroup cols={2}>
+  <Card title="Frontend" icon="desktop">
+    **http://localhost:3000**
+    
+    Vue.js application with interactive visualizations
+  </Card>
+  <Card title="Backend API" icon="server">
+    **http://localhost:5001**
+    
+    Flask REST API for simulation and graph operations
+  </Card>
+</CardGroup>
+
+## Running Your First Simulation
+
+Let's walk through creating your first prediction simulation:
+
+<Steps>
+  <Step title="Step 1: Upload Seed Material">
+    **Graph Building Phase**
+    
+    1. Click **"Upload Files"** or drag-and-drop your seed material
+    2. Supported formats: PDF, Markdown (.md), or Text (.txt)
+    3. Describe your prediction goal in natural language
+    
+    **Example:**
+    - Upload: A news article about a policy change
+    - Goal: "Predict public sentiment and potential reactions over the next week"
+    
+    <Tip>
+    Start with a focused, specific document (2-10 pages) for your first simulation. Large documents take longer to process.
+    </Tip>
+  </Step>
+  
+  <Step title="Step 2: Build Knowledge Graph">
+    Click **"Build Graph"** to start the GraphRAG construction:
+    
+    - Extracts entities (people, organizations, events)
+    - Builds relationships between entities
+    - Injects memories into Zep Cloud
+    
+    **Progress indicators:**
+    - Entity extraction: ~30-60 seconds
+    - Graph construction: ~1-2 minutes
+    
+    You can visualize the generated knowledge graph in the UI.
+  </Step>
+  
+  <Step title="Step 3: Configure Simulation">
+    **Environment Setup Phase**
+    
+    MiroFish automatically:
+    - Generates agent personas based on entities
+    - Configures simulation parameters using LLM reasoning
+    - Sets up Twitter and Reddit environments
+    
+    **Customizable settings:**
+    - Number of simulation rounds (default: 10, recommended: fewer than 40)
+    - Enable/disable Twitter or Reddit platforms
+    - Agent interaction parameters
+    
+    <Warning>
+    **Cost Management**: Each simulation round consumes LLM tokens. Start with 10-20 rounds to estimate costs before running longer simulations.
+    </Warning>
+  </Step>
+  
+  <Step title="Step 4: Run Simulation">
+    Click **"Start Simulation"** to begin the agent interactions:
+    
+    **What happens:**
+    - Agents are deployed to Twitter and Reddit platforms
+    - They read posts, react, create content, and interact
+    - Memory is updated dynamically as simulation progresses
+    
+    **Real-time monitoring:**
+    - Current round progress
+    - Agent actions (posts, likes, comments)
+    - Platform-specific activity logs
+    
+    <Info>
+    A 10-round simulation typically takes 5-15 minutes depending on agent count and LLM response times.
+    </Info>
+  </Step>
+  
+  <Step title="Step 5: Generate Report">
+    **Report Generation Phase**
+    
+    After simulation completes, the ReportAgent:
+    - Analyzes all agent interactions
+    - Identifies emergent patterns and trends
+    - Generates a comprehensive prediction report
+    
+    **Report includes:**
+    - Executive summary
+    - Key findings and predictions
+    - Evidence from agent interactions
+    - Statistical analysis
+  </Step>
+  
+  <Step title="Step 6: Explore & Interact">
+    **Deep Interaction Phase**
+    
+    Dive deeper into your simulation:
+    
+    - **Chat with agents**: Ask any agent about their thoughts and motivations
+    - **Query ReportAgent**: Get additional insights and clarifications
+    - **Visualize networks**: See how agent relationships evolved
+    - **Export data**: Download simulation logs and results
+  </Step>
+</Steps>
+
+## What to Expect
+
+### Simulation Timeline
+
+Here's a typical timeline for a 10-round simulation:
+
+| Phase | Duration | Description |
+|-------|----------|-------------|
+| Graph Building | 2-5 min | Knowledge graph construction and entity extraction |
+| Environment Setup | 1-2 min | Agent persona generation and config generation |
+| Simulation | 5-15 min | Dual-platform agent interactions (10 rounds) |
+| Report Generation | 2-3 min | Analysis and report compilation |
+| **Total** | **10-25 min** | End-to-end first simulation |
+
+### Resource Usage
+
+<CardGroup cols={2}>
+  <Card title="LLM Tokens" icon="coins">
+    **Estimated per simulation:**
+    - Graph building: 5k-10k tokens
+    - Agent generation: 2k-5k tokens per agent
+    - Simulation: 500-1k tokens per agent per round
+    - Report: 10k-20k tokens
+    
+    <Tip>
+    For a 10-agent, 10-round simulation: ~50k-100k total tokens
+    </Tip>
+  </Card>
+  
+  <Card title="Zep Cloud" icon="database">
+    **Free tier sufficient for:**
+    - 5-10 small simulations per month
+    - Up to 50 agents with memory
+    - Basic GraphRAG operations
+    
+    <Info>
+    Upgrade to paid tier for production use or large-scale simulations.
+    </Info>
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Configuration Error: LLM_API_KEY or ZEP_API_KEY not configured">
+    **Solution:**
+    1. Verify `.env` file exists in project root
+    2. Check that API keys are set correctly (no quotes, no spaces)
+    3. Restart the backend: `npm run backend`
+    
+    ```bash
+    # Verify configuration
+    cat .env | grep API_KEY
+    ```
+  </Accordion>
+  
+  <Accordion title="Backend fails to start: Python version error">
+    **Solution:**
+    Ensure you're using Python 3.11 or 3.12:
+    
+    ```bash
+    python --version
+    # If wrong version, install correct Python and update PATH
+    ```
+    
+    If you have multiple Python versions:
+    ```bash
+    # Specify Python version for uv
+    cd backend
+    uv venv --python 3.11
+    uv sync
+    ```
+  </Accordion>
+  
+  <Accordion title="Frontend shows 'Network Error' when accessing API">
+    **Solution:**
+    1. Verify backend is running on port 5001
+    2. Check browser console for CORS errors
+    3. Ensure `flask-cors` is installed: `cd backend && uv sync`
+    
+    ```bash
+    # Test backend directly
+    curl http://localhost:5001/api/health
+    ```
+  </Accordion>
+  
+  <Accordion title="Simulation fails: 'Rate limit exceeded'">
+    **Solution:**
+    Your LLM provider rate limit was hit. Options:
+    1. Reduce number of agents
+    2. Reduce number of rounds
+    3. Add delay between rounds (backend config)
+    4. Upgrade your LLM API plan
+  </Accordion>
+  
+  <Accordion title="Out of memory during large simulations">
+    **Solution:**
+    - Start with fewer agents (fewer than 20 for first run)
+    - Reduce simulation rounds (fewer than 40)
+    - Close other applications to free RAM
+    - Consider upgrading to 16GB+ RAM for production use
+  </Accordion>
+</AccordionGroup>
+
+### Still Having Issues?
+
+<CardGroup cols={3}>
+  <Card title="Discord Community" icon="discord" href="https://discord.com/channels/1469200078932545606/1469201282077163739">
+    Get help from the community
+  </Card>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/666ghj/MiroFish/issues">
+    Report bugs or request features
+  </Card>
+  <Card title="Email Support" icon="envelope">
+    mirofish@shanda.com
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+Now that you've run your first simulation, explore more advanced features:
+
+<CardGroup cols={2}>
+  <Card title="Advanced Configuration" icon="sliders" href="/deployment/configuration">
+    Explore all environment variables and settings
+  </Card>
+  <Card title="Use Cases" icon="lightbulb" href="/advanced/use-cases">
+    See real-world prediction examples
+  </Card>
+  <Card title="Best Practices" icon="star" href="/advanced/performance">
+    Tips for designing effective simulations and interpreting results
+  </Card>
+</CardGroup>
+
+## Docker Deployment (Alternative)
+
+For production or containerized environments, use Docker:
+
+```bash
+# 1. Configure environment variables
+cp .env.example .env
+# Edit .env with your API keys
+
+# 2. Start with Docker Compose
+docker compose up -d
+```
+
+**Services:**
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:5001`
+
+<Tip>
+**Faster Image Pulling**: `docker-compose.yml` includes comments with mirror addresses for faster downloads in certain regions.
+</Tip>
+
+---
+
+<Card title="Ready to Predict the Future?" icon="rocket">
+  You're all set! Start with a simple document and prediction goal, then gradually explore more complex scenarios as you become familiar with MiroFish.
+  
+  **Remember**: The best simulations start with clear, focused seed materials and specific prediction questions.
+</Card>
