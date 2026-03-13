@@ -1,0 +1,126 @@
+{
+  "projectType": "saas",
+  "projectName": "MiroFish",
+  "projectDescription": "A swarm intelligence engine for predicting future events through multi-agent simulation and digital twin environments",
+  "theme": "aspen",
+  "primaryColor": "#ffffff",
+  "lightColor": "#45b0fb",
+  "darkColor": "#87ddfc",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "overview",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/workflow",
+              "concepts/agents",
+              "concepts/memory-system",
+              "concepts/graph-rag"
+            ]
+          },
+          {
+            "group": "User Guide",
+            "pages": [
+              "guide/upload-seed-materials",
+              "guide/graph-construction",
+              "guide/environment-setup",
+              "guide/running-simulation",
+              "guide/generating-reports",
+              "guide/interaction"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/requirements",
+              "deployment/source-installation",
+              "deployment/docker",
+              "deployment/configuration"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/use-cases",
+              "advanced/customization",
+              "advanced/troubleshooting",
+              "advanced/performance"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Graph API",
+            "pages": [
+              "api/graph/projects",
+              "api/graph/ontology",
+              "api/graph/build"
+            ]
+          },
+          {
+            "group": "Simulation API",
+            "pages": [
+              "api/simulation/entities",
+              "api/simulation/profiles",
+              "api/simulation/run",
+              "api/simulation/status",
+              "api/simulation/interview"
+            ]
+          },
+          {
+            "group": "Report API",
+            "pages": [
+              "api/report/generate",
+              "api/report/status",
+              "api/report/chat"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-agent simulation with OASIS engine",
+    "GraphRAG-powered knowledge graph construction",
+    "Long-term memory with Zep Cloud integration",
+    "Interactive digital twin environment",
+    "Automated prediction report generation",
+    "Real-time agent conversation interface",
+    "Dual-platform parallel simulation",
+    "Flexible seed material processing (PDF, TXT, etc.)"
+  ],
+  "publicApiSurface": [
+    "POST /api/graph/project",
+    "POST /api/graph/ontology/generate",
+    "POST /api/graph/build",
+    "GET /api/simulation/entities/<graph_id>",
+    "POST /api/simulation/profiles/generate",
+    "POST /api/simulation/run",
+    "GET /api/simulation/status/<simulation_id>",
+    "POST /api/simulation/interview",
+    "POST /api/report/generate",
+    "GET /api/report/status/<simulation_id>",
+    "POST /api/report/chat"
+  ]
+}
